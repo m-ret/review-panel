@@ -69,6 +69,12 @@ describe("findSecrets", () => {
     expect(findSecrets(text, [])).toEqual([]);
   });
 
+  test("different kinds are in order of line", () => {
+    const aws = fake("AK", "IA", "ABCDEFGHIJKLMNOP");
+    const slack = fake("xo", "xb-", "123456789012-abcdefGHIJ");
+    expect(findSecrets(`${slack}\n\n${aws}`, []).map((one) => one.line)).toEqual([1, 3]);
+  });
+
   test("the same kind on several lines is reported once for each line", () => {
     const value = fake("AK", "IA", "ABCDEFGHIJKLMNOP");
     expect(findSecrets(`${value}\nx\n${value}`, []).map((one) => one.line)).toEqual([1, 3]);

@@ -26,6 +26,10 @@ describe("createSseReader", () => {
     expect(read("data: one\r", "\n\r", "\ndata: two\r\n\r\n")).toEqual(["one", "two"]);
   });
 
+  test("a CRLF split between two chunks is one line ending, not an empty line that would end the event", () => {
+    expect(read("data: one\r", "\ndata: two\r\n\r\n")).toEqual(["one\ntwo"]);
+  });
+
   test("ignores keep-alive comments and other fields", () => {
     expect(read(": keep-alive\n\nevent: ping\nid: 7\nretry: 100\n\ndata: one\n\n")).toEqual(["one"]);
   });
@@ -35,7 +39,7 @@ describe("createSseReader", () => {
   });
 
   test("removes only the one space after the colon", () => {
-    expect(read("data:  indented\n\ndata:tight\n\n")).toEqual([" indented", "tight"]);
+    expect(read("data:  indented\n\ndata:tight fit\n\n")).toEqual([" indented", "tight fit"]);
   });
 
   test("an empty data line is still an event with empty data", () => {

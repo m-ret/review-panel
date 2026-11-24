@@ -142,6 +142,7 @@ describe("transportFailure", () => {
     expect(refused(410)).toBe("model-not-found");
     expect(refused(400)).toBe("bad-request");
     expect(refused(413)).toBe("bad-request");
+    expect(refused(300)).toBe("provider-error");
     expect(refused(307)).toBe("provider-error");
     expect(refused(500)).toBe("provider-error");
     expect(refused(529)).toBe("provider-error");
