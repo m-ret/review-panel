@@ -46,18 +46,18 @@ export function parseDiff(text: string): ParsedDiff {
       if (mark === "\\") continue;
       if (mark === "+" || mark === " ") newLeft -= 1;
       if (mark === "-" || mark === " ") oldLeft -= 1;
-      if (!"+- ".includes(mark) || newLeft < 0 || oldLeft < 0) {
-        problem ??= `line ${index + 1} does not fit the hunk it is in`;
-        oldLeft = 0;
-        newLeft = 0;
+      if ("+- ".includes(mark) && newLeft >= 0 && oldLeft >= 0) {
+        if (mark === "+" && file) {
+          file.added += 1;
+          file.addedText += `${line.slice(1)}\n`;
+        }
+        if (mark === "-" && file) file.removed += 1;
         continue;
       }
-      if (mark === "+" && file) {
-        file.added += 1;
-        file.addedText += `${line.slice(1)}\n`;
-      }
-      if (mark === "-" && file) file.removed += 1;
-      continue;
+      // The hunk is broken. This line may already be the header of the next file, so it is read again below.
+      problem ??= `line ${index + 1} does not fit the hunk it is in`;
+      oldLeft = 0;
+      newLeft = 0;
     }
 
     if (line.startsWith("diff --git ")) {

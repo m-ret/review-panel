@@ -249,6 +249,8 @@ describe("parseDiff", () => {
       problem: "line 5 does not fit the hunk it is in",
     });
     const cutShort = lines("--- a/x", "+++ b/x", "@@ -1,9 +1,9 @@", " a");
+    const binary = lines("diff --git a/src/auth.bin b/src/auth.bin", "Binary files a/src/auth.bin and b/src/auth.bin differ");
+    expect(paths(cutShort + binary)).toEqual(["x", "src/auth.bin"]);
     expect(parseDiff(cutShort + MODIFIED)).toMatchObject({
       files: [{ path: "x" }, { path: "src/a.ts", added: 2, removed: 1 }],
       problem: "line 5 does not fit the hunk it is in",
