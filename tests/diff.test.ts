@@ -228,6 +228,13 @@ describe("parseDiff", () => {
     expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ -1 +1,2 @@", "-a", "-b", "+c", "+d")).problem).toContain("line 5");
   });
 
+  test("a hunk that claims more lines than it has cannot hide the next file without a problem being said", () => {
+    const next = ["--- a/src/auth.ts", "+++ b/src/auth.ts", "@@ -1 +1 @@", "-a", "+b"];
+    for (const claim of ["@@ -1,2 +1,2 @@", "@@ -1,3 +1,3 @@", "@@ -1,9 +1,9 @@", "@@ -1,99999999999999999999 +1 @@"]) {
+      expect(parseDiff(lines("--- a/x", "+++ b/x", claim, " a", ...next)).problem).not.toBeNull();
+    }
+  });
+
   test("says so when a hunk header cannot be read", () => {
     expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ nonsense @@", "+a")).problem).toContain("line 3");
   });
