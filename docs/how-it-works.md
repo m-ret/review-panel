@@ -163,7 +163,7 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 
 **Why count labs and not models?** Two models from one lab share training data and habits. Labs are the simplest stand-in for "thinks differently". It is only a stand-in: different labs also train on much of the same public text, so they can share a blind spot.
 
-**Why ask for a sign-off instead of looking for errors?** A list of known errors only catches errors that somebody has seen. The first reworded rate-limit message passes as a review. So the burden of proof is turned around: no proof, no answer.
+**Why ask for a sign-off instead of looking for errors?** A list of known errors only catches errors that somebody has seen. The first reworded rate-limit message would get through. Here it is the other way around: no proof, no answer.
 
 **Why split the code in two?** With one half at each end, a reviewer that lost either end cannot sign. It costs one sentence in the prompt. Every complete answer in the live runs below got it right.
 

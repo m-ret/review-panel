@@ -72,9 +72,9 @@ function refusalReason(status: number | null, code: string, note: string): NoAns
 }
 
 /**
- * Whether a reviewer answered. The burden of proof is on the answer: it counts
- * only if it arrived whole and ends with this run's sign-off. There is no list
- * of known bad replies, because a list only catches what was seen before.
+ * Whether a reviewer answered. An answer has to prove itself: it counts only if
+ * it arrived whole and ends with this run's sign-off. There is no list of known
+ * bad replies, because a list only catches what was seen before.
  */
 export function judge(evidence: Evidence, kind: Kind, code: string): Outcome {
   const no = (reason: NoAnswer, detail: string): Outcome => ({ answered: false, reason, detail });
