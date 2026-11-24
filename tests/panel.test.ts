@@ -161,6 +161,7 @@ describe("runPanel", () => {
     const gone = refuses(404, { error: { message: "gone" } });
     const { panel, provider } = await run({ a: reviews(), b: gone, c: gone });
     expect(panel.state).toBe("not-started");
+    expect(panel.spent).toBe(0);
     expect(panel.results).toEqual([]);
     expect(provider.requests.filter((request) => !request.isCheck)).toEqual([]);
     expect(panel.bench.map((one) => [one.reviewer.id, one.reason])).toEqual([
@@ -246,6 +247,7 @@ describe("runPanel", () => {
       },
     );
     expect(result("b")?.outcome).toEqual({ answered: false, reason: "internal-error", detail: "boom" });
+    expect(result("b")?.isWorstCase).toBe(true);
     expect(result("a")?.outcome.answered).toBe(true);
     expect(panel.state).toBe("incomplete");
   });

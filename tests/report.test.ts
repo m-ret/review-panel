@@ -92,11 +92,23 @@ describe("summaryMarkdown", () => {
     expect(top).toContain("A missing answer is not agreement");
   });
 
-  test("a short panel says how many seats are missing, even if everyone who sat answered", () => {
+  const thirdLine = (one: Run) => summaryMarkdown(one).split("\n")[2];
+
+  test("says exactly what is missing: an answer, a seat, or both", () => {
+    expect(thirdLine(incomplete)).toBe(
+      "**This panel is not complete.** 1 reviewer did not answer. A missing answer is not agreement.",
+    );
+    expect(thirdLine(run([seat("a", clean), seat("b", clean)], { wanted: 4 }))).toBe(
+      "**This panel is not complete.** The risk asks for 4 reviewers and only 2 could sit. A missing answer is not agreement.",
+    );
+    expect(thirdLine(run([seat("a", missing), seat("b", missing)], { wanted: 3 }))).toBe(
+      "**This panel is not complete.** The risk asks for 3 reviewers and only 2 could sit. 2 reviewers did not answer. A missing answer is not agreement.",
+    );
+  });
+
+  test("a short panel counts against the seats it wanted, not the seats it filled", () => {
     const text = summaryMarkdown(run([seat("a", clean), seat("b", clean)], { wanted: 4 }));
-    expect(text.split("\n").slice(0, 4).join("\n")).toContain("2 of 4");
-    expect(text).toContain("asks for 4 reviewers and only 2 could sit");
-    expect(text).toContain("not complete");
+    expect(text.split("\n")[0]).toContain("2 of 4");
   });
 
   test("a complete panel never reads as approval", () => {
@@ -187,8 +199,9 @@ describe("summaryMarkdown", () => {
     expect(summaryMarkdown(human)).toMatch(/human.*no lab sits out/u);
   });
 
-  test("shows the risk with its reasons, and the cost against the cap", () => {
+  test("shows the risk with its reasons, the size, and the cost against the cap", () => {
     const text = summaryMarkdown(complete);
+    expect(text).toContain("git diff main...HEAD, 1 file, +41 -3");
     expect(text).toContain("- **Risk:** medium");
     expect(text).toContain("src/pay.ts touches payments (pay)");
     expect(text).toContain("$0.012345 of $0.50");
@@ -245,6 +258,22 @@ describe("summaryJson", () => {
         { id: "b", answered: false, reason: "rate-limited", detail: "HTTP 429: slow down", file: "b.md" },
         { id: "c", answered: true },
       ],
+    });
+  });
+
+  test("keeps the numbers of each call, and what was wrong with the diff", () => {
+    expect(summaryJson(complete)).toMatchObject({
+      diffProblem: null,
+      reviewers: [
+        { seconds: 41.8, usage: { inputTokens: 3120, outputTokens: 840 }, costUsd: 0.004, isWorstCase: false },
+        {},
+        {},
+      ],
+    });
+    const problem = "the diff stops in the middle of a hunk";
+    expect(summaryJson(run([seat("a", clean, { evidence: null })], {}, { diff: { files: [], problem } }))).toMatchObject({
+      diffProblem: problem,
+      reviewers: [{ seconds: null, usage: null }],
     });
   });
 

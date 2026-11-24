@@ -45,6 +45,8 @@ describe("buildPrompt", () => {
     const question = build({ kind: "question" });
     expect(question).not.toContain("FINDING |");
     expect(question).toContain("recommendation");
+    expect(build()).toContain("The second half is below the change.");
+    expect(question).toContain("The second half is below the question.");
   });
 });
 

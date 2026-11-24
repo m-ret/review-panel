@@ -47,8 +47,12 @@ describe("findSecrets", () => {
     ]);
   });
 
+  test("eight characters are enough, also at the very start of the text", () => {
+    expect(findSecrets("abcd1234\nabcd1234\n", ["abcd1234"]).map((one) => one.line)).toEqual([1, 2]);
+  });
+
   test("a very short environment value is not searched for, it would match everywhere", () => {
-    expect(findSecrets("+const abc = 1;\n", ["abc", ""])).toEqual([]);
+    expect(findSecrets("+const abcdefg = 1;\n", ["abcdefg", ""])).toEqual([]);
   });
 
   test("ordinary code, placeholders and hashes are not secrets", () => {

@@ -107,6 +107,16 @@ describe("createReply", () => {
     }
   });
 
+  test("usage of zero is a number like any other", () => {
+    const usage = { prompt_tokens: 5, completion_tokens: 0, total_tokens: 5 };
+    expect(collect(JSON.stringify({ choices: [], usage })).usage).toEqual({ inputTokens: 5, outputTokens: 0 });
+  });
+
+  test("parts of an odd shape are skipped, not a crash", () => {
+    const content = [null, "bare", 7, { type: "text" }, { text: "no type" }, { type: "text", text: "yes" }];
+    expect(collect(frame({ delta: { content } })).text).toBe("yes");
+  });
+
   test("reads a whole completion sent at once by a server that does not stream", () => {
     const reply = createReply();
     reply.addWhole(
