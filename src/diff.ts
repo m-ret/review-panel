@@ -9,6 +9,8 @@ export type ChangedFile = {
 
 export type ParsedDiff = {
   files: ChangedFile[];
+  /** Files whose new content is not in the diff, so nobody can review it. */
+  binary: string[];
   /** Why the diff could not be read all the way, or null. */
   problem: string | null;
 };
@@ -23,6 +25,7 @@ export type ParsedDiff = {
  */
 export function parseDiff(text: string): ParsedDiff {
   const files: ChangedFile[] = [];
+  const binary: string[] = [];
   let file: ChangedFile | null = null;
   /** True between "diff --git" and the first hunk, where "---" and "+++" name this same file. */
   let inHeader = false;
@@ -70,6 +73,10 @@ export function parseDiff(text: string): ParsedDiff {
         file = start(line.replace(/^diff --\w+ /u, ""), null);
         inHeader = true;
       }
+    } else if (/^Binary files .* differ$/u.test(line) || line === "GIT binary patch") {
+      binary.push(inHeader && file ? file.path : line);
+    } else if (/^\*{15}/u.test(line) || /^\d+(?:,\d+)?[acd]\d+(?:,\d+)?$/u.test(line)) {
+      problem ??= `line ${index + 1} is from another kind of diff`;
     } else if (line.startsWith("new file mode") && file) {
       file.oldPath = null;
     } else if (/^(?:rename|copy) from /u.test(line) && file) {
@@ -99,28 +106,31 @@ export function parseDiff(text: string): ParsedDiff {
 
   if (oldLeft > 0 || newLeft > 0) problem ??= "the diff stops in the middle of a hunk";
   if (files.length === 0) problem ??= "no changed file found";
-  return { files, problem };
+  return { files, binary, problem };
 }
 
 /** The path on a "--- " or "+++ " line; null for /dev/null. Plain diffs put a date after a tab. */
 function headerPath(line: string): string | null {
-  const path = unquote((line.slice(4).split("\t")[0] ?? "").trimEnd());
+  const path = unquote(line.slice(4).split("\t")[0] ?? "");
   return path === "/dev/null" ? null : path;
 }
 
-/** Drops git's "a/" and "b/", but only when both sides have them. */
+/** The prefixes git can put before a path: a/ and b/, or i/, w/, c/ and o/ when it is set up that way. */
+const PREFIX = /^[abciow]\//u;
+
+/** Drops git's prefixes, but only when both sides have one. */
 function withoutPrefixes(oldPath: string | null, newPath: string | null): [string | null, string | null] {
-  const isGit = (oldPath?.startsWith("a/") ?? true) && (newPath?.startsWith("b/") ?? true);
+  const isGit = [oldPath, newPath].every((path) => path === null || PREFIX.test(path));
   return isGit ? [oldPath?.slice(2) ?? null, newPath?.slice(2) ?? null] : [oldPath, newPath];
 }
 
 /** "a/x b/x". The two halves are equal unless the file was renamed, and then the rename lines name it. */
 function pathFromGitHeader(rest: string): string {
   const quoted = /^"(?:[^"\\]|\\.)*"/u.exec(rest)?.[0];
-  if (quoted !== undefined) return unquote(quoted).replace(/^a\//u, "");
-  const length = (rest.length - "a/ b/".length) / 2;
-  const path = rest.slice(2, 2 + length);
-  return rest === `a/${path} b/${path}` ? path : rest;
+  if (quoted !== undefined) return unquote(quoted).replace(PREFIX, "");
+  const [left, right] = [rest.slice(0, (rest.length - 1) / 2), rest.slice((rest.length + 1) / 2)];
+  const isPair = PREFIX.test(left) && PREFIX.test(right) && left.slice(2) === right.slice(2);
+  return isPair ? left.slice(2) : rest;
 }
 
 /** Undoes git's quoting of unusual paths: "caf\303\251" is café. */

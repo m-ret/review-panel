@@ -5,6 +5,7 @@ import type { ChangedFile, ParsedDiff } from "../src/diff.ts";
 function diffOf(...files: (Partial<ChangedFile> & { path: string })[]): ParsedDiff {
   return {
     files: files.map((file) => ({ oldPath: file.path, added: 50, removed: 10, addedText: "", ...file })),
+    binary: [],
     problem: null,
   };
 }
@@ -134,7 +135,7 @@ describe("classifyDiff: risk", () => {
   });
 
   test("a diff that could not be read is high, because nobody knows what it holds", () => {
-    const result = classifyDiff({ files: [], problem: "no changed file found" });
+    const result = classifyDiff({ files: [], binary: [], problem: "no changed file found" });
     expect(result.risk).toBe("high");
     expect(result.areas).toEqual(["code"]);
     expect(result.reasons.join()).toContain("no changed file found");

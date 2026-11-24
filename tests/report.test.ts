@@ -52,6 +52,7 @@ const plan = (over: Partial<Plan> = {}): Plan => ({
   authors: { names: ["claude"], labs: new Set(["anthropic"]) },
   diff: {
     files: [{ path: "src/pay.ts", oldPath: "src/pay.ts", added: 41, removed: 3, addedText: "" }],
+    binary: [],
     problem: null,
   },
   classification: { areas: ["payments", "code"], risk: "medium", reasons: ["src/pay.ts touches payments (pay)"] },
@@ -257,7 +258,7 @@ describe("summaryMarkdown", () => {
 
   test("a diff that could not be read all the way is said out loud", () => {
     const text = summaryMarkdown(
-      run([seat("a", clean), seat("b", clean)], {}, { diff: { files: [], problem: "the diff stops in the middle of a hunk" } }),
+      run([seat("a", clean), seat("b", clean)], {}, { diff: { files: [], binary: [], problem: "the diff stops in the middle of a hunk" } }),
     );
     expect(text).toContain("the diff stops in the middle of a hunk");
   });
@@ -309,7 +310,7 @@ describe("summaryJson", () => {
       ],
     });
     const problem = "the diff stops in the middle of a hunk";
-    expect(summaryJson(run([seat("a", clean, { evidence: null })], {}, { diff: { files: [], problem } }))).toMatchObject({
+    expect(summaryJson(run([seat("a", clean, { evidence: null })], {}, { diff: { files: [], binary: [], problem } }))).toMatchObject({
       diffProblem: problem,
       reviewers: [{ seconds: null, usage: null }],
     });

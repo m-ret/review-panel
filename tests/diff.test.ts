@@ -21,6 +21,7 @@ describe("parseDiff", () => {
   test("finds the file and counts what was added and removed", () => {
     expect(parseDiff(MODIFIED)).toEqual({
       files: [{ path: "src/a.ts", oldPath: "src/a.ts", added: 2, removed: 1, addedText: "2\ntwo and a half\n" }],
+      binary: [],
       problem: null,
     });
   });
@@ -108,6 +109,7 @@ describe("parseDiff", () => {
     );
     expect(parseDiff(diff)).toEqual({
       files: [{ path: "db/x.sql", oldPath: "db/x.sql", added: 1, removed: 1, addedText: "++ b/docs/fake.md\n" }],
+      binary: [],
       problem: null,
     });
   });
@@ -153,6 +155,37 @@ describe("parseDiff", () => {
     const modeChange = (header: string) => paths(lines(header, "old mode 100644", "new mode 100755"));
     expect(modeChange("diff --git a/x b/y.sh b/x b/y.sh")).toEqual(["x b/y.sh"]);
     expect(modeChange('diff --git "a/caf\\303\\251.sh" "b/caf\\303\\251.sh"')).toEqual(["café.sh"]);
+  });
+
+  test("lists the files whose content is not in the diff, because nobody can review what is not there", () => {
+    const differ = lines("diff --git a/img/a b.png b/img/a b.png", "index 1..2 100644", "Binary files a/img/a b.png and b/img/a b.png differ");
+    const patch = lines("diff --git a/x.bin b/x.bin", "index 1..2 100644", "GIT binary patch", "literal 4", "LcmZQzWMT#Y01f~L", "");
+    expect(parseDiff(differ + MODIFIED + patch)).toMatchObject({ binary: ["img/a b.png", "x.bin"], problem: null });
+    expect(parseDiff(lines("Binary files a/x and b/x differ")).binary).toEqual(["Binary files a/x and b/x differ"]);
+  });
+
+  test("a file name that ends with a space keeps it", () => {
+    expect(paths(lines("--- a/odd \t", "+++ b/odd \t", "@@ -1 +1 @@", "-a", "+b"))).toEqual(["odd "]);
+  });
+
+  test("the other prefixes git can be set to are dropped too", () => {
+    const hunk = ["@@ -1 +1 @@", "-a", "+b"];
+    for (const [one, two] of [["i", "w"], ["c", "i"], ["c", "w"], ["o", "w"]]) {
+      const name = ".github/workflows/ci.yml";
+      const full = lines(`diff --git ${one}/${name} ${two}/${name}`, `--- ${one}/${name}`, `+++ ${two}/${name}`, ...hunk);
+      expect(paths(full)).toEqual([name]);
+      expect(paths(lines(`--- ${one}/${name}`, `+++ ${two}/${name}`, ...hunk))).toEqual([name]);
+      expect(paths(lines(`diff --git ${one}/${name} ${two}/${name}`, "old mode 100644", "new mode 100755"))).toEqual([name]);
+    }
+  });
+
+  test("says so when part of it is another kind of diff, which would change files that are not named here", () => {
+    const context = lines("*** a/src/auth.ts", "--- b/src/auth.ts", "***************", "*** 1 ****", "! 1", "--- 1 ----", "! 2");
+    const normal = lines("diff -r a/src/auth.ts b/src/auth.ts", "1c1", "< a", "---", "> b");
+    for (const other of [context, normal]) {
+      expect(parseDiff(MODIFIED + other).problem).toContain("another kind of diff");
+      expect(parseDiff(other + MODIFIED).problem).toContain("another kind of diff");
+    }
   });
 
   test("a/ and b/ are only dropped when both sides have them", () => {
@@ -269,7 +302,7 @@ describe("parseDiff", () => {
   });
 
   test("says so when there is nothing that looks like a changed file", () => {
-    expect(parseDiff("hello\nworld\n")).toEqual({ files: [], problem: "no changed file found" });
+    expect(parseDiff("hello\nworld\n")).toEqual({ files: [], binary: [], problem: "no changed file found" });
   });
 
   test("a hunk with no file above it is a problem, not a crash", () => {

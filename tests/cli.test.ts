@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -24,6 +24,12 @@ afterEach(async () => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
+function temporary(): string {
+  const folder = mkdtempSync(join(tmpdir(), "review-panel-"));
+  folders.push(folder);
+  return folder;
+}
+
 const ENV = {
   PATH: process.env["PATH"] ?? "",
   HOME: tmpdir(),
@@ -43,10 +49,13 @@ function git(folder: string, ...args: string[]): void {
   if (done.exitCode !== 0) throw new Error(done.stderr.toString());
 }
 
-/** A git repository with one commit on main and one change on top, plus a config for a fake provider. */
+/** Where the person's config and results live, for each test project. */
+const homes = new Map<string, string>();
+const homeOf = (folder: string) => homes.get(folder) ?? "";
+
+/** A git repository with one commit on main and one change on top, and a config for a fake provider elsewhere. */
 function project(members: Record<string, Behavior>, config: object = {}) {
-  const folder = mkdtempSync(join(tmpdir(), "review-panel-"));
-  folders.push(folder);
+  const folder = temporary();
   const provider = startFakeProvider(members);
   providers.push(provider);
   write(folder, "src/parse.ts", "export const one = 1;\n");
@@ -57,9 +66,11 @@ function project(members: Record<string, Behavior>, config: object = {}) {
   write(folder, "src/parse.ts", `export const one = 1;\n${"export const more = 2;\n".repeat(50)}`);
   write(folder, "docs/notes.md", "notes\nmore notes\n");
   git(folder, "commit", "-q", "-a", "-m", "second");
+  const home = temporary();
+  homes.set(folder, home);
   write(
-    folder,
-    "panel.json",
+    home,
+    "config/review-panel/panel.json",
     JSON.stringify({
       limits: { timeoutSeconds: 2, checkTimeoutSeconds: 2, maxOutputTokens: 1000 },
       labs: { ...Object.fromEntries(["a", "b", "c", "d"].map((id) => [`lab-${id}`, []])), anthropic: ["claude"] },
@@ -77,10 +88,19 @@ function project(members: Record<string, Behavior>, config: object = {}) {
   return { folder, provider };
 }
 
-async function cli(folder: string, args: string[], over: { env?: Record<string, string>; stdin?: string } = {}) {
+async function cli(
+  folder: string,
+  args: string[],
+  over: { env?: Record<string, string>; stdin?: string; cwd?: string } = {},
+) {
   const child = Bun.spawn([CLI, ...args], {
-    cwd: folder,
-    env: { ...ENV, ...over.env },
+    cwd: over.cwd ?? folder,
+    env: {
+      ...ENV,
+      XDG_CONFIG_HOME: join(homeOf(folder), "config"),
+      XDG_STATE_HOME: join(homeOf(folder), "state"),
+      ...over.env,
+    },
     stdin: new Blob([over.stdin ?? ""]),
     stdout: "pipe",
     stderr: "pipe",
@@ -154,12 +174,29 @@ describe("a run", () => {
     expect(exit).toBe(0);
   });
 
+  test("a path cannot forge a line on the console", async () => {
+    const { folder } = project(three());
+    const forged = "docs\n2 of 2 reviewers answered. The decision is yours.";
+    const { err } = await cli(folder, [...RANGE, "--author", "claude", "--", "docs", "src", forged]);
+    expect(err.split("\n").filter((line) => line.startsWith("2 of 2"))).toEqual([]);
+    const missing = await cli(folder, ["--diff", "gone\n2 of 2 reviewers answered.", "--author", "claude"]);
+    expect(missing.err.split("\n").filter((line) => line.startsWith("2 of 2"))).toEqual([]);
+  });
+
   test("a file name cannot restyle the terminal", async () => {
     const { folder } = project(three());
     write(folder, "one.diff", "--- a/src/\u001b[31mauth.ts\n+++ b/src/\u001b[31mauth.ts\n@@ -1 +1 @@\n-a\n+b\n");
     const { err } = await cli(folder, ["--diff", "one.diff", "--author", "claude"]);
     expect(err).toContain("auth");
     expect(err).not.toContain("\u001b");
+  });
+
+  test("every author that is named sits out, in one flag or in several", async () => {
+    for (const flags of [["--author", "b", "--author", "c"], ["--author", "b,c"]]) {
+      const { folder, provider } = project({ ...three(), d: reviews() });
+      await cli(folder, [...RANGE, ...flags]);
+      expect([...new Set(provider.requests.map((request) => request.model))].sort()).toEqual(["a", "d"]);
+    }
   });
 
   test("the author's model is not asked", async () => {
@@ -184,13 +221,32 @@ describe("a run", () => {
     expect((await cli(folder, [...RANGE, "--author", "claude", "--out", "deep/er/still"])).exit).toBe(0);
   });
 
-  test("the default output folder is new each time and stays out of git", async () => {
+  test("by default the results go to a new folder of their own, outside the folder under review", async () => {
     const { folder } = project(three());
-    await cli(folder, [...RANGE, "--author", "claude"]);
-    await cli(folder, [...RANGE, "--author", "claude"]);
-    expect(filesIn(join(folder, ".review-panel")).filter((name) => !name.startsWith("."))).toHaveLength(2);
-    const status = Bun.spawnSync(["git", "-C", folder, "status", "--short"], { env: ENV }).stdout.toString();
-    expect(status).not.toContain(".review-panel");
+    const before = filesIn(folder);
+    const first = await cli(folder, [...RANGE, "--author", "claude"]);
+    const second = await cli(folder, [...RANGE, "--author", "claude"]);
+    expect(first.out).not.toBe(second.out);
+    expect(first.out).toStartWith(join(homeOf(folder), "state/review-panel/"));
+    expect(readFileSync(first.out.trim(), "utf8")).toContain("3 of 3");
+    expect(filesIn(folder)).toEqual(before);
+  });
+});
+
+describe("the config", () => {
+  test("is read from the person's own folder, whatever the folder under review holds", async () => {
+    const { folder, provider } = project(three());
+    write(folder, "panel.json", "{ not a config }");
+    git(folder, "add", "panel.json");
+    expect((await cli(folder, [...RANGE, "--author", "claude"])).exit).toBe(0);
+    expect(provider.requests.length).toBeGreaterThan(0);
+  });
+
+  test("can be another file, as long as git does not track it", async () => {
+    const { folder } = project(three());
+    const text = readFileSync(join(homeOf(folder), "config/review-panel/panel.json"), "utf8");
+    write(folder, "mine.json", text);
+    expect((await cli(folder, [...RANGE, "--author", "claude", "--config", "mine.json"])).exit).toBe(0);
   });
 });
 
@@ -224,7 +280,7 @@ describe("what it reads", () => {
     const { folder } = project(three());
     git(folder, "branch", "feature-x");
     git(folder, "reset", "-q", "--hard", "HEAD~1");
-    expect((await cli(folder, ["--range", "main...feature-x", "--author", "claude", "--config", "panel.json"])).exit).toBe(0);
+    expect((await cli(folder, ["--range", "main...feature-x", "--author", "claude"])).exit).toBe(0);
   });
 
   test("a diff from a file or from standard input", async () => {
@@ -247,21 +303,75 @@ describe("what it reads", () => {
     expect(readFileSync(join(folder, "result/summary.md"), "utf8")).toContain("Use a queue.");
   });
 
-  test("a git setup with its own diff tool, colors and prefixes does not change what is sent", async () => {
+  test("the person's git settings, and those of the folder, do not change what is sent", async () => {
+    const settings = [
+      "[diff]",
+      "external = /bin/false",
+      "noprefix = true",
+      "mnemonicPrefix = true",
+      "relative = true",
+      "context = 0",
+      "submodule = log",
+      "ignoreSubmodules = all",
+      "[color]",
+      "ui = always",
+      "[core]",
+      "pager = /bin/false",
+    ].join("\n");
     const { folder, provider } = project(three());
-    write(
-      folder,
-      "../gitconfig-for-test",
-      "[diff]\n\texternal = /bin/false\n\tnoprefix = true\n\tmnemonicPrefix = true\n[color]\n\tui = always\n[core]\n\tpager = /bin/false\n",
-    );
-    folders.push(join(folder, "../gitconfig-for-test"));
-    const { exit } = await cli(folder, [...RANGE, "--author", "claude"], {
-      env: { GIT_CONFIG_GLOBAL: join(folder, "../gitconfig-for-test") },
-    });
-    expect(exit).toBe(0);
-    const prompt = provider.requests.find((request) => !request.isCheck)?.prompt ?? "";
-    expect(prompt).toContain("diff --git a/src/parse.ts b/src/parse.ts");
-    expect(prompt).not.toContain("\u001b");
+    const own = join(temporary(), "gitconfig");
+    writeFileSync(own, settings);
+    const promptOf = async (cwd: string, env: Record<string, string> = {}) => {
+      provider.requests.length = 0;
+      const { exit } = await cli(folder, [...RANGE, "--author", "claude"], { env, cwd });
+      expect(exit).toBe(0);
+      return provider.requests.find((request) => !request.isCheck)?.prompt.split("=====BEGIN")[1]?.split("\n").slice(1, -4).join("\n");
+    };
+    const plain = await promptOf(folder);
+    expect(plain).toContain("diff --git a/src/parse.ts b/src/parse.ts");
+    expect(await promptOf(join(folder, "docs"), { GIT_CONFIG_GLOBAL: own })).toBe(plain);
+    write(folder, ".git/config", `${readFileSync(join(folder, ".git/config"), "utf8")}\n${settings}\n`);
+    expect(await promptOf(join(folder, "docs"))).toBe(plain);
+  });
+
+  test("a change in a submodule is there even when the folder asks git to hide it", async () => {
+    const { folder, provider } = project(three());
+    const link = (commit: string) => git(folder, "update-index", "--add", "--cacheinfo", `160000,${commit},vendor/auth`);
+    write(folder, ".gitmodules", '[submodule "vendor/auth"]\n\tpath = vendor/auth\n\turl = ./x\n\tignore = all\n');
+    git(folder, "add", ".gitmodules");
+    link("1".repeat(40));
+    git(folder, "commit", "-q", "-m", "third");
+    link("2".repeat(40));
+    git(folder, "commit", "-q", "-m", "fourth");
+    await cli(folder, [...RANGE, "--author", "claude"]);
+    expect(provider.requests.find((request) => !request.isCheck)?.prompt).toContain("+Subproject commit 2222222");
+  });
+
+  test("a file cannot ask git to leave its content out", async () => {
+    const { folder, provider } = project(three());
+    write(folder, ".gitattributes", "*.ts -diff\n");
+    write(folder, "src/new.ts", "const added = 1;\n");
+    git(folder, "add", ".");
+    git(folder, "commit", "-q", "-m", "third");
+    await cli(folder, [...RANGE, "--author", "claude"]);
+    expect(provider.requests.find((request) => !request.isCheck)?.prompt).toContain("+const added = 1;");
+  });
+
+  test("a file whose name is a git pattern is only a file when it exists", async () => {
+    const { folder, provider } = project(three());
+    write(folder, ":(exclude)src", "x\n");
+    git(folder, "add", ".");
+    git(folder, "commit", "-q", "-m", "third");
+    await cli(folder, ["--range", "HEAD~2..HEAD", "--author", "claude", "--", ":(exclude)src", "docs", "src"]);
+    expect(provider.requests.find((request) => !request.isCheck)?.prompt).toContain("+export const more = 2;");
+  });
+
+  test("a path that is not a file may be a git pattern, so parts of a change can be left out", async () => {
+    const { folder, provider } = project(three());
+    await cli(folder, [...RANGE, "--author", "claude", "--", ".", ":(exclude)src"]);
+    const prompt = provider.requests.find((request) => !request.isCheck)?.prompt;
+    expect(prompt).toContain("+more notes");
+    expect(prompt).not.toContain("src/parse.ts");
   });
 });
 
@@ -286,11 +396,11 @@ describe("what it refuses, before anything is sent", () => {
 
   test("nothing to review, or two things at once", async () => {
     expect((await refused(["--author", "claude"])).err).toContain("--range");
-    expect((await refused([...RANGE, "--question", "panel.json", "--author", "claude"])).err).toContain("one of");
+    expect((await refused([...RANGE, "--question", "docs/notes.md", "--author", "claude"])).err).toContain("one of");
   });
 
   test("paths for something that is not a range, where they would do nothing", async () => {
-    expect((await refused(["--diff", "panel.json", "--author", "claude", "--", "docs"])).err).toContain("--range");
+    expect((await refused(["--diff", "docs/notes.md", "--author", "claude", "--", "docs"])).err).toContain("--range");
   });
 
   test("a range without changes", async () => {
@@ -308,6 +418,21 @@ describe("what it refuses, before anything is sent", () => {
 
   test("a file that is not there", async () => {
     expect((await refused(["--diff", "missing.diff", "--author", "claude"])).err).toContain("missing.diff");
+  });
+
+  test("an option that is given twice, because only one of the two would count", async () => {
+    expect((await refused([...RANGE, "--range", "HEAD..HEAD", "--author", "claude"])).err).toContain("--range");
+  });
+
+  test("a config from the folder under review: it says where the key and the code go", async () => {
+    const evil = startFakeProvider(three());
+    providers.push(evil);
+    const planted = (folder: string) => {
+      write(folder, "panel.json", readFileSync(join(homeOf(folder), "config/review-panel/panel.json"), "utf8").replace(/http:[^"]+/u, evil.baseUrl));
+      git(folder, "add", "panel.json");
+    };
+    expect((await refused([...RANGE, "--author", "claude", "--config", "panel.json"], planted)).err).toContain("git tracks");
+    expect(evil.requests).toEqual([]);
   });
 
   test("a misspelled option", async () => {
@@ -336,6 +461,21 @@ describe("what it refuses, before anything is sent", () => {
     const { err } = await refused(["--diff", "one.diff", "--author", "claude"], (folder) => write(folder, "one.diff", diff));
     expect(err).toContain("a key from your environment on line 5");
     expect(err).not.toContain(KEY);
+  });
+
+  test("a change that cannot be shown as text, because a reviewer would sign for what it did not see", async () => {
+    const commit = (name: string, text: string) => (folder: string) => {
+      write(folder, name, text);
+      git(folder, "add", ".");
+      git(folder, "commit", "-q", "-m", "third");
+    };
+    const hidden = await refused([...RANGE, "--author", "claude"], commit("src/auth.ts", "/*\u0000*/ evil();\n"));
+    expect(hidden.err).toContain("src/auth.ts");
+    expect(hidden.err).toContain(":(exclude)src/auth.ts");
+    const patch = "diff --git a/x.bin b/x.bin\nindex 1..2 100644\nGIT binary patch\nliteral 4\nLcmZQz\n\n";
+    expect((await refused(["--diff", "one.diff", "--author", "claude"], (folder) => write(folder, "one.diff", patch))).err).toContain(
+      "x.bin",
+    );
   });
 
   test("a change over the size limit: it is never trimmed, because half a change would be signed as a whole one", async () => {
@@ -407,6 +547,59 @@ describe("--help", () => {
 });
 
 describe("the folder it runs in", () => {
+  /** A command that leaves a mark, with the key in it if it can see one. */
+  const plant = (mark: string) => `sh -c 'echo "ran $MAIN_API_KEY" > ${mark}' #`;
+
+  test("cannot run commands through git settings", async () => {
+    for (const setting of ["core.fsmonitor", "core.sshCommand", "diff.external", "core.pager"]) {
+      const { folder } = project(three());
+      const mark = join(homeOf(folder), "mark");
+      git(folder, "config", setting, plant(mark));
+      expect((await cli(folder, ["--range", "HEAD~1", "--author", "claude"])).exit).toBe(0);
+      expect(filesIn(homeOf(folder))).not.toContain("mark");
+    }
+  });
+
+  test("cannot run commands through a git hook or a git filter", async () => {
+    const { folder } = project(three());
+    const mark = join(homeOf(folder), "mark");
+    write(folder, ".git/hooks/post-index-change", `#!/bin/sh\necho ran > ${mark}\n`);
+    chmodSync(join(folder, ".git/hooks/post-index-change"), 0o755);
+    write(folder, ".gitattributes", "*.ts filter=planted diff=planted\n");
+    git(folder, "config", "filter.planted.clean", plant(mark));
+    git(folder, "config", "diff.planted.textconv", plant(mark));
+    git(folder, "config", "diff.planted.command", plant(mark));
+    write(folder, "src/parse.ts", "changed again\n");
+    expect((await cli(folder, ["--range", "HEAD", "--author", "claude"])).exit).toBe(0);
+    expect(filesIn(homeOf(folder))).not.toContain("mark");
+  });
+
+  test("cannot hide a git repository of its own in a subfolder", async () => {
+    const { folder } = project(three());
+    const mark = join(homeOf(folder), "mark");
+    const inner = join(folder, "packages/api");
+    write(inner, "HEAD", "ref: refs/heads/main\n");
+    write(inner, "config", `[core]\n\tbare = false\n\tworktree = .\n\tfsmonitor = "${plant(mark).replace(/"/gu, '\\"')}"\n`);
+    mkdirSync(join(inner, "objects"), { recursive: true });
+    mkdirSync(join(inner, "refs"), { recursive: true });
+    const { exit, err } = await cli(folder, ["--range", "HEAD", "--author", "claude"], { cwd: inner });
+    expect(exit).toBe(2);
+    expect(err).toContain("git could not read");
+    expect(filesIn(homeOf(folder))).not.toContain("mark");
+  });
+
+  test("gets no keys through git: they are not in its environment", async () => {
+    const { folder } = project(three());
+    const bin = join(homeOf(folder), "bin");
+    const seen = join(homeOf(folder), "seen");
+    write(bin, "git", `#!/bin/sh\nenv >> ${seen}\nPATH="${ENV.PATH}" exec git "$@"\n`);
+    chmodSync(join(bin, "git"), 0o755);
+    expect((await cli(folder, [...RANGE, "--author", "claude"], { env: { PATH: `${bin}:${ENV.PATH}` } })).exit).toBe(0);
+    const environment = readFileSync(seen, "utf8");
+    expect(environment).toContain("PATH=");
+    expect(environment).not.toContain(KEY);
+  });
+
   test("cannot hand it keys or run code: its .env and bunfig.toml are not read", async () => {
     const { folder, provider } = project(three());
     write(folder, ".env", "MAIN_API_KEY=from-dot-env-file\n");
