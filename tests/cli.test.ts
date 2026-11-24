@@ -320,7 +320,10 @@ describe("what it reads", () => {
     ].join("\n");
     const { folder, provider } = project(three());
     const own = join(temporary(), "gitconfig");
-    writeFileSync(own, settings);
+    // Only in the person's own settings: an order of files, which no option of ours would undo.
+    const order = join(temporary(), "order");
+    writeFileSync(order, "src/*\n");
+    writeFileSync(own, `${settings}\n[diff]\norderFile = ${order}\n`);
     const promptOf = async (cwd: string, env: Record<string, string> = {}) => {
       provider.requests.length = 0;
       const { exit } = await cli(folder, [...RANGE, "--author", "claude"], { env, cwd });
@@ -339,6 +342,7 @@ describe("what it reads", () => {
     const link = (commit: string) => git(folder, "update-index", "--add", "--cacheinfo", `160000,${commit},vendor/auth`);
     write(folder, ".gitmodules", '[submodule "vendor/auth"]\n\tpath = vendor/auth\n\turl = ./x\n\tignore = all\n');
     git(folder, "add", ".gitmodules");
+    git(folder, "config", "diff.submodule", "log");
     link("1".repeat(40));
     git(folder, "commit", "-q", "-m", "third");
     link("2".repeat(40));
@@ -584,7 +588,21 @@ describe("the folder it runs in", () => {
     mkdirSync(join(inner, "refs"), { recursive: true });
     const { exit, err } = await cli(folder, ["--range", "HEAD", "--author", "claude"], { cwd: inner });
     expect(exit).toBe(2);
-    expect(err).toContain("git could not read");
+    expect(err).toMatch(/git could not read HEAD: .*not a git repository/iu);
+    expect(filesIn(homeOf(folder))).not.toContain("mark");
+  });
+
+  test("cannot make git fetch something, which would start a command of its choice", async () => {
+    const { folder } = project(three());
+    const mark = join(homeOf(folder), "mark");
+    const blob = Bun.spawnSync(["git", "-C", folder, "rev-parse", "HEAD:src/parse.ts"], { env: ENV }).stdout.toString().trim();
+    rmSync(join(folder, ".git/objects", blob.slice(0, 2), blob.slice(2)));
+    git(folder, "config", "core.repositoryFormatVersion", "1");
+    git(folder, "config", "extensions.partialClone", "far");
+    git(folder, "config", "remote.far.url", "ssh://host/path");
+    git(folder, "config", "remote.far.promisor", "true");
+    git(folder, "config", "core.sshCommand", plant(mark));
+    expect((await cli(folder, [...RANGE, "--author", "claude"])).exit).toBe(2);
     expect(filesIn(homeOf(folder))).not.toContain("mark");
   });
 
