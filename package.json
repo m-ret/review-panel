@@ -1,0 +1,28 @@
+{
+  "name": "review-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Send a diff or a question to two to four AI models that did not write it, record every answer and every missing one, and leave the decision to a person.",
+  "license": "MIT",
+  "author": "Marcelo Retana",
+  "type": "module",
+  "bin": {
+    "review-panel": "src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "demo": "bun run demo/demo.ts",
+    "check": "bun run typecheck && bun run test"
+  },
+  "engines": {
+    "bun": ">=1.4"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.5",
+    "typescript": "7.0.2"
+  }
+}
