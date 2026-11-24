@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -574,6 +574,7 @@ describe("the folder it runs in", () => {
     git(folder, "config", "diff.planted.textconv", plant(mark));
     git(folder, "config", "diff.planted.command", plant(mark));
     write(folder, "src/parse.ts", "changed again\n");
+    utimesSync(join(folder, "docs/notes.md"), 1, 1); // git would like to write down the new time, and that runs a hook
     expect((await cli(folder, ["--range", "HEAD", "--author", "claude"])).exit).toBe(0);
     expect(filesIn(homeOf(folder))).not.toContain("mark");
   });
