@@ -18,6 +18,7 @@ export type NoAnswer =
   | "filtered"
   | "unsigned"
   | "inconsistent"
+  | "over-budget"
   | "internal-error";
 
 export type Failure = { reason: NoAnswer; detail: string };
@@ -41,7 +42,11 @@ export function transportFailure(evidence: Evidence): Failure | null {
   if (end === "too-long") return { reason: "provider-error", detail: "the reply was too long and was stopped" };
 
   const isSuccess = status !== null && status >= 200 && status < 300;
-  if (isSuccess && refusal === null) return null;
+  if (isSuccess && refusal === null) {
+    const { frames, badFrames } = evidence;
+    if (badFrames > 0) return { reason: "provider-error", detail: `${badFrames} part(s) of the reply could not be read` };
+    return frames > 0 ? null : { reason: "provider-error", detail: "the reply was not a chat completion" };
+  }
 
   // A stream can start with 200 and still carry an error, with a code of its own.
   const code = refusal?.code ?? null;
@@ -73,7 +78,6 @@ export function judge(evidence: Evidence, kind: Kind, code: string): Outcome {
 
   const failure = transportFailure(evidence);
   if (failure) return { answered: false, ...failure };
-  if (evidence.badFrames > 0) return no("provider-error", `${evidence.badFrames} part(s) of the reply could not be read`);
   if (finishReason === "error") return no("provider-error", "the provider said the generation failed");
   if (finishReason === "content_filter") return no("filtered", "held back by the provider's content filter");
   if (text.trim() === "") {

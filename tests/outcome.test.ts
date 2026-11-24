@@ -172,6 +172,17 @@ describe("transportFailure", () => {
     expect(failure({ end: "timeout", ms: 60_000, status: null })?.detail).toBe("no complete reply after 60 s");
   });
 
+  test("a page that is not a chat completion is a failure, even with status 200", () => {
+    expect(failure({ frames: 0 })).toEqual({ reason: "provider-error", detail: "the reply was not a chat completion" });
+  });
+
+  test("a reply with a part that could not be read is a failure", () => {
+    expect(failure({ badFrames: 2 })).toEqual({
+      reason: "provider-error",
+      detail: "2 part(s) of the reply could not be read",
+    });
+  });
+
   test("a lost connection and a reply that never stops are failures too", () => {
     expect(failure({ end: "network", status: null, refusal: { code: "ECONNREFUSED", note: "ECONNREFUSED" } })).toEqual({
       reason: "network",
