@@ -185,7 +185,8 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 
 All on 2026-11-24, with free models.
 
-- **Do models sign with a split code?** In 11 complete answers from four labs, 11 were signed correctly and had the right number of findings. The other 7 calls of those runs ended in a timeout and were recorded as such.
+- **Do models sign with a split code?** Out of 30 review calls, 17 came back with a complete answer, from five labs. All 17 were signed correctly and counted their findings right. The other 13 were 12 timeouts and one empty answer, and all were recorded as such.
+- **Do empty answers happen?** Yes. One model used its whole limit of 32,000 tokens to think, sent 120,699 characters of hidden reasoning and not one character of text. The status was 200.
 - **Does a list of models prove anything?** No. One listed model gave 404.
 - **What does a 16-token check show on a reasoning model?** Status 200, only hidden reasoning, and "stopped at the token limit". It passes, as it should.
 - **How much do providers add to a prompt?** A 26-byte prompt was billed as 14 to 184 tokens.
@@ -197,7 +198,7 @@ All on 2026-11-24, with free models.
 
 Tests were written first and seen failing. They use no keys and no network. Calls go over real HTTP to a stand-in provider on the same machine (`demo/fake-provider.ts`), which can answer, stop half way, refuse, stay silent, send broken pieces or send a whole web page. The command-line tests start the real command by its first line, in a real git repository.
 
-Then the code was broken on purpose, one small change at a time, to see whether a test noticed. The breaks that nobody noticed became new tests.
+Then the code was broken on purpose, one small change at a time, to see whether a test noticed. In the last full pass the tests noticed 485 of 541 small breaks. The rest were read one by one. Those that mattered became new tests, and one of them showed a real bug in the diff reader. The others change nothing that a person could see, such as a limit moved by one.
 
 ## What it does not do
 
