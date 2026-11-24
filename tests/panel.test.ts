@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   afterCheck,
-  type Behaviour,
+  type Behavior,
   type FakeProvider,
   frame,
   refuses,
@@ -33,11 +33,11 @@ const MEDIUM = [
   "",
 ].join("\n");
 
-type Member = { behaviour: Behaviour; lab?: string; price?: { input: number; output: number } };
+type Member = { behavior: Behavior; lab?: string; price?: { input: number; output: number } };
 
 /** A roster of fake reviewers, all served by one fake provider. */
 async function run(
-  members: Record<string, Member | Behaviour>,
+  members: Record<string, Member | Behavior>,
   over: {
     material?: string;
     authorLabs?: string[];
@@ -49,9 +49,9 @@ async function run(
 ) {
   const entries = Object.entries(members).map(([id, member]): [string, Member] => [
     id,
-    typeof member === "function" ? { behaviour: member } : member,
+    typeof member === "function" ? { behavior: member } : member,
   ]);
-  const provider = startFakeProvider(Object.fromEntries(entries.map(([id, { behaviour }]) => [id, behaviour])));
+  const provider = startFakeProvider(Object.fromEntries(entries.map(([id, { behavior }]) => [id, behavior])));
   open.push(provider);
   const config = parseConfig(
     JSON.stringify({
@@ -100,7 +100,7 @@ describe("runPanel", () => {
     expect([...prompts][0]).toContain(MEDIUM);
   });
 
-  const broken: Record<string, Behaviour> = {
+  const broken: Record<string, Behavior> = {
     empty: afterCheck(() => stream([frame("m", { reasoning_content: "hm" }), frame("m", {}, "stop"), sse("[DONE]")])),
     truncated: afterCheck((request) =>
       stream([frame("m", { content: `${FINDING}\n${signOff(request, 1)}` }, "length"), sse("[DONE]")]),
@@ -114,9 +114,9 @@ describe("runPanel", () => {
     timeout: afterCheck(() => stream([frame("m", { content: "half" }), 3000])),
   };
 
-  for (const [reason, behaviour] of Object.entries(broken)) {
+  for (const [reason, behavior] of Object.entries(broken)) {
     test(`${reason}: the seat did not answer, the panel is not complete, and the others still count`, async () => {
-      const { panel, result } = await run({ a: reviews(FINDING), b: behaviour, c: reviews() });
+      const { panel, result } = await run({ a: reviews(FINDING), b: behavior, c: reviews() });
       expect(result("b")?.outcome).toMatchObject({ answered: false, reason });
       expect(panel.state).toBe("incomplete");
       expect(result("a")?.outcome.answered).toBe(true);
@@ -198,7 +198,7 @@ describe("runPanel", () => {
   test("the cost of the checks and the answers is added up", async () => {
     const price = { input: 1, output: 10 };
     const { panel, result } = await run(
-      { a: { behaviour: reviews(), price }, b: reviews(), c: reviews() },
+      { a: { behavior: reviews(), price }, b: reviews(), c: reviews() },
       { limits: { maxUsd: 1 } },
     );
     // Check: 20 in, 2 out. Review: 1000 in, 200 out.
@@ -209,7 +209,7 @@ describe("runPanel", () => {
   test("a reviewer whose worst case does not fit is not called, and the cap holds", async () => {
     const price = { input: 0, output: 100 }; // an answer may cost up to 100,000
     const { panel, asked } = await run(
-      { a: { behaviour: reviews(), price }, b: { behaviour: reviews(), price }, c: reviews(), d: reviews() },
+      { a: { behavior: reviews(), price }, b: { behavior: reviews(), price }, c: reviews(), d: reviews() },
       { limits: { maxUsd: 0.15 } },
     );
     expect(asked("a")).toBe(1);
@@ -222,14 +222,14 @@ describe("runPanel", () => {
   test("a reply without usage is charged its worst case, and says so", async () => {
     const noUsage = afterCheck((request) => stream([frame("a", { content: signOff(request, 0) }, "stop"), sse("[DONE]")]));
     const price = { input: 0, output: 100 };
-    const { result } = await run({ a: { behaviour: noUsage, price }, b: reviews(), c: reviews() }, { limits: { maxUsd: 1 } });
+    const { result } = await run({ a: { behavior: noUsage, price }, b: reviews(), c: reviews() }, { limits: { maxUsd: 1 } });
     expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
   });
 
   test("a provider that charges more than its worst case is reported", async () => {
     const greedy = afterCheck(says((request) => signOff(request, 0), { input: 1000, output: 900_000 }));
     const { panel } = await run(
-      { a: { behaviour: greedy, price: { input: 0, output: 1 } }, b: reviews(), c: reviews() },
+      { a: { behavior: greedy, price: { input: 0, output: 1 } }, b: reviews(), c: reviews() },
       { limits: { maxUsd: 0.01 } },
     );
     expect(panel.isOverCap).toBe(true);
@@ -256,7 +256,7 @@ describe("runPanel", () => {
 
   test("when a run ends, no money is still set aside, whatever happened in it", async () => {
     const price = { input: 1, output: 1 };
-    const paid = (behaviour: Behaviour) => ({ behaviour, price });
+    const paid = (behavior: Behavior) => ({ behavior, price });
     const { panel, budget } = await run(
       { a: paid(reviews()), b: paid(afterCheck(refuses(500, "down"))), c: paid(reviews()), d: paid(reviews()), e: paid(reviews()) },
       {
@@ -289,8 +289,8 @@ describe("runPanel", () => {
 
   test("two reviewers from one lab never sit together", async () => {
     const { panel } = await run({
-      a: { behaviour: reviews(), lab: "same" },
-      b: { behaviour: reviews(), lab: "same" },
+      a: { behavior: reviews(), lab: "same" },
+      b: { behavior: reviews(), lab: "same" },
       c: reviews(),
       d: reviews(),
     });

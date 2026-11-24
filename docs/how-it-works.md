@@ -24,7 +24,7 @@ review-panel --range main...HEAD --author claude
 
 ### 1. Read the work (`input.ts`, `diff.ts`)
 
-The program asks git for the diff. It forces a plain diff, because people set up git in different ways: with colours, with another diff tool, or with other prefixes. A range that starts with a hyphen is refused. Git would read it as an option, and some git options write files.
+The program asks git for the diff. It forces a plain diff, because people set up git in different ways: with colors, with another diff tool, or with other prefixes. A range that starts with a hyphen is refused. Git would read it as an option, and some git options write files.
 
 Then it reads the diff to learn which files changed, and by how many lines. Each block of a diff starts with a header such as `@@ -1,3 +1,4 @@`, which says how many lines follow. The program counts them down one by one. The reason is a trap. A comment in SQL starts with `--`. When you remove one, the diff line is `--- some text`, and that looks exactly like a file header. Without counting, the content of a file could invent another file or hide one, and that would change the risk.
 

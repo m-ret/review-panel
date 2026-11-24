@@ -32,7 +32,7 @@ describe("resolveAuthors", () => {
     expect(labs("Vendor/alpha-1")).toEqual(["lab-a"]);
   });
 
-  test("a misspelt author is refused, because guessing could seat the real one", () => {
+  test("a misspelled author is refused, because guessing could seat the real one", () => {
     expect(labs("alpah")).toContain("'alpah'");
     expect(labs("alpah")).toContain("alpha");
   });

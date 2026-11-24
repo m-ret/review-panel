@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-  type Behaviour,
+  type Behavior,
   type FakeProvider,
   frame,
   refuses,
@@ -20,10 +20,10 @@ afterEach(async () => {
 });
 
 async function check(
-  behaviour: Behaviour,
+  behavior: Behavior,
   over: { key?: string | null; maxUsd?: number; price?: { input: number; output: number } } = {},
 ) {
-  const provider = startFakeProvider({ m: behaviour });
+  const provider = startFakeProvider({ m: behavior });
   open.push(provider);
   const reviewer = {
     id: "alpha",

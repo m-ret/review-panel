@@ -15,7 +15,7 @@ Send a diff or a question to two to four AI models that did not write it. Every 
 
 When one model writes code and others review it, three things go wrong without a sound:
 
-- **The author reviews its own work.** A model rarely sees the hole it just left. Here, the lab of whoever wrote the change sits out, and a misspelt author is refused, because a typo would seat the real one.
+- **The author reviews its own work.** A model rarely sees the hole it just left. Here, the lab of whoever wrote the change sits out, and a misspelled author is refused, because a typo would seat the real one.
 - **Silence looks like approval.** A rate limit, a cut-off reply, an empty body and a clean review can all end up in a log as "no findings". Here, a reply counts only if it proves that it arrived whole.
 - **Code makes the decision.** Votes get added up, and three models that missed a bug outvote the one that saw it. Here, the summary ends with two empty boxes: GO and NO-GO.
 

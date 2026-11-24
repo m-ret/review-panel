@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { fenced, oneLine, providerNote, stripControls, tableCell } from "../src/text.ts";
 
 describe("stripControls", () => {
-  test("removes terminal colour codes so a reply cannot restyle the console", () => {
+  test("removes terminal color codes so a reply cannot restyle the console", () => {
     expect(stripControls("\u001b[31mred\u001b[0m text")).toBe("red text");
   });
 

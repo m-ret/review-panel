@@ -1,7 +1,7 @@
 // Everything a provider or a model sends back is untrusted text. These helpers
 // make it safe to print in a terminal and safe to paste into a Markdown file.
 
-/** Terminal sequences: window titles and links (OSC), colours and cursor moves (CSI). */
+/** Terminal sequences: window titles and links (OSC), colors and cursor moves (CSI). */
 const TERMINAL_SEQUENCES = /\u001b\][^\u0007\u001b\n]*(?:\u0007|\u001b\\)?|\u001b\[[\x20-\x3f]*[\x40-\x7e]|\u001b./gu;
 /** Other control characters except tab and line feed, plus invisible format characters. */
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}/gu;

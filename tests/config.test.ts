@@ -60,7 +60,7 @@ describe("parseConfig", () => {
   });
 
   test("the hint about keys is there even when another setting is wrong too", () => {
-    const main = { baseUrl: "https://api.example.com/v1", apiKey: "x", colour: "red" };
+    const main = { baseUrl: "https://api.example.com/v1", apiKey: "x", color: "red" };
     expect(problemOf(config({ providers: { main } }))).toContain("environment variable");
   });
 
@@ -175,7 +175,7 @@ describe("parseConfig", () => {
     expect(problemOf(config({ reviewers: [reviewer({ id: "human" }), reviewer({ id: "beta" })] }))).toContain("human");
   });
 
-  test("a misspelt setting is refused instead of being ignored", () => {
+  test("a misspelled setting is refused instead of being ignored", () => {
     expect(problemOf(config({ limits: { maxUSD: 5 } }))).toContain("maxUSD");
   });
 });

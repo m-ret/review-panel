@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-  type Behaviour,
+  type Behavior,
   type FakeProvider,
   frame,
   refuses,
@@ -17,8 +17,8 @@ afterEach(async () => {
   await Promise.all(open.splice(0).map((provider) => provider.stop()));
 });
 
-function provide(behaviour: Behaviour): FakeProvider {
-  const provider = startFakeProvider({ m: behaviour });
+function provide(behavior: Behavior): FakeProvider {
+  const provider = startFakeProvider({ m: behavior });
   open.push(provider);
   return provider;
 }
@@ -35,9 +35,9 @@ const target = (provider: FakeProvider, over: Partial<Target> = {}): Target => (
   ...over,
 });
 
-async function call(behaviour: Behaviour, over: Partial<Target> & { timeoutMs?: number; maxReplyBytes?: number } = {}) {
+async function call(behavior: Behavior, over: Partial<Target> & { timeoutMs?: number; maxReplyBytes?: number } = {}) {
   const { timeoutMs = 5000, maxReplyBytes = 1_000_000, ...rest } = over;
-  const provider = provide(behaviour);
+  const provider = provide(behavior);
   const evidence = await callModel(target(provider, rest), PROMPT, {
     maxOutputTokens: 500,
     timeoutMs,

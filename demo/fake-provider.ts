@@ -1,5 +1,5 @@
 // A local stand-in for an OpenAI-compatible provider. The tests and the demo
-// run the real code against it, over real HTTP. Each model gets a behaviour.
+// run the real code against it, over real HTTP. Each model gets a behavior.
 // The frames have the shape that real providers sent on 2026-11-24.
 
 export type ModelRequest = {
@@ -11,11 +11,11 @@ export type ModelRequest = {
   body: Record<string, unknown>;
 };
 
-export type Behaviour = (request: ModelRequest) => Response | Promise<Response>;
+export type Behavior = (request: ModelRequest) => Response | Promise<Response>;
 
 export type FakeProvider = { baseUrl: string; requests: ModelRequest[]; stop(): Promise<void> };
 
-export function startFakeProvider(models: Record<string, Behaviour>): FakeProvider {
+export function startFakeProvider(models: Record<string, Behavior>): FakeProvider {
   const requests: ModelRequest[] = [];
   const server = Bun.serve({
     port: 0,
@@ -35,8 +35,8 @@ export function startFakeProvider(models: Record<string, Behaviour>): FakeProvid
         body,
       };
       requests.push(seen);
-      const behaviour = models[seen.model];
-      return behaviour ? behaviour(seen) : refuses(404, { error: { message: `no model ${seen.model}` } })(seen);
+      const behavior = models[seen.model];
+      return behavior ? behavior(seen) : refuses(404, { error: { message: `no model ${seen.model}` } })(seen);
     },
   });
   return { baseUrl: `http://127.0.0.1:${server.port}/v1`, requests, stop: () => server.stop(true) };
@@ -79,7 +79,7 @@ export function stream(parts: (string | Uint8Array | number)[]): Response {
 }
 
 /** Says `text` and finishes normally, with its usage and the end mark. */
-export function says(text: string | ((request: ModelRequest) => string), usage = { input: 1000, output: 200 }): Behaviour {
+export function says(text: string | ((request: ModelRequest) => string), usage = { input: 1000, output: 200 }): Behavior {
   return (request) => {
     const answer = typeof text === "string" ? text : text(request);
     const words = request.isCheck ? ["ready"] : answer.match(/.{1,40}/gsu) ?? [];
@@ -95,7 +95,7 @@ export function says(text: string | ((request: ModelRequest) => string), usage =
 }
 
 /** A reviewer that does its job: writes its findings and signs for them. */
-export function reviews(...findings: string[]): Behaviour {
+export function reviews(...findings: string[]): Behavior {
   return says((request) =>
     [...findings, findings.length === 0 ? "I read every file and checked the error paths." : "", signOff(request, findings.length)].join(
       "\n",
@@ -110,13 +110,13 @@ export function signOff(request: ModelRequest, value: string | number): string {
   return `SIGN-OFF ${first}-${second} | ${value}`;
 }
 
-export function refuses(status: number, body: object | string, headers: Record<string, string> = {}): Behaviour {
+export function refuses(status: number, body: object | string, headers: Record<string, string> = {}): Behavior {
   const text = typeof body === "string" ? body : JSON.stringify(body);
   return () => new Response(text, { status, headers: { "content-type": "application/json", ...headers } });
 }
 
 /** Passes its check, then does something else when asked to review. */
-export function afterCheck(behaviour: Behaviour): Behaviour {
+export function afterCheck(behavior: Behavior): Behavior {
   const ready = says("ready");
-  return (request) => (request.isCheck ? ready(request) : behaviour(request));
+  return (request) => (request.isCheck ? ready(request) : behavior(request));
 }

@@ -52,7 +52,7 @@ describe("classifyDiff: what the change touches", () => {
     expect(areas({ path: "openapi/spec/payments.yaml" })).toEqual(["payments", "code"]);
   });
 
-  test("the usual test file names are recognised", () => {
+  test("the usual test file names are recognized", () => {
     for (const path of ["src/a.test.ts", "src/a.spec.tsx", "pkg/a_test.go", "test_a.py", "spec/a_spec.rb", "e2e/a.ts"]) {
       expect(areas({ path })).toEqual(["tests"]);
     }

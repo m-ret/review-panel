@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   afterCheck,
-  type Behaviour,
+  type Behavior,
   type FakeProvider,
   refuses,
   reviews,
@@ -44,7 +44,7 @@ function git(folder: string, ...args: string[]): void {
 }
 
 /** A git repository with one commit on main and one change on top, plus a config for a fake provider. */
-function project(members: Record<string, Behaviour>, config: object = {}) {
+function project(members: Record<string, Behavior>, config: object = {}) {
   const folder = mkdtempSync(join(tmpdir(), "review-panel-"));
   folders.push(folder);
   const provider = startFakeProvider(members);
@@ -247,7 +247,7 @@ describe("what it reads", () => {
     expect(readFileSync(join(folder, "result/summary.md"), "utf8")).toContain("Use a queue.");
   });
 
-  test("a git setup with its own diff tool, colours and prefixes does not change what is sent", async () => {
+  test("a git setup with its own diff tool, colors and prefixes does not change what is sent", async () => {
     const { folder, provider } = project(three());
     write(
       folder,
@@ -310,7 +310,7 @@ describe("what it refuses, before anything is sent", () => {
     expect((await refused(["--diff", "missing.diff", "--author", "claude"])).err).toContain("missing.diff");
   });
 
-  test("a misspelt option", async () => {
+  test("a misspelled option", async () => {
     expect((await refused([...RANGE, "--author", "claude", "--dryrun"])).err).toContain("--dryrun");
   });
 

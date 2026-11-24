@@ -2,7 +2,7 @@ import { isRecord } from "./text.ts";
 
 export type Usage = { inputTokens: number; outputTokens: number };
 
-/** What a chat completion said, put back together from its frames. No judgement here. */
+/** What a chat completion said, put back together from its frames. No judgment here. */
 export type Reply = {
   text: string;
   /** Length of the hidden reasoning. It is counted and never shown as an answer. */

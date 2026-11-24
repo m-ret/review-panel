@@ -2,7 +2,7 @@ import { createReply, type Usage } from "./reply.ts";
 import { createSseReader } from "./sse.ts";
 import { providerNote, stripControls, withoutKeys } from "./text.ts";
 
-/** What happened on the wire, cleaned and without any judgement. `outcome.ts` judges it. */
+/** What happened on the wire, cleaned and without any judgment. `outcome.ts` judges it. */
 export type Evidence = {
   ms: number;
   /** Null when no response arrived. */
