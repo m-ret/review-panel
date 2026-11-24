@@ -4,12 +4,12 @@ import { resolveAuthors } from "../src/author.ts";
 
 const config = parseConfig(
   JSON.stringify({
+    labs: { "lab-a": [], "lab-b": [], anthropic: ["claude", "claude-code"] },
     providers: { main: { baseUrl: "https://api.example.com/v1" } },
     reviewers: [
       { id: "alpha", lab: "lab-a", provider: "main", model: "vendor/Alpha-1", usdPerMillionTokens: { input: 0, output: 0 } },
       { id: "beta", lab: "lab-b", provider: "main", model: "vendor/beta-1", usdPerMillionTokens: { input: 0, output: 0 } },
     ],
-    authors: { claude: "anthropic" },
   }),
 );
 
@@ -24,6 +24,7 @@ describe("resolveAuthors", () => {
     expect(labs("vendor/Alpha-1")).toEqual(["lab-a"]);
     expect(labs("lab-b")).toEqual(["lab-b"]);
     expect(labs("claude")).toEqual(["anthropic"]);
+    expect(labs("claude-code")).toEqual(["anthropic"]);
     expect(labs("anthropic")).toEqual(["anthropic"]);
   });
 

@@ -56,6 +56,7 @@ async function run(
   const config = parseConfig(
     JSON.stringify({
       limits: { timeoutSeconds: 1, checkTimeoutSeconds: 1, maxOutputTokens: 1000, ...over.limits },
+      labs: Object.fromEntries(entries.map(([id, { lab }]) => [lab ?? `lab-${id}`, []])),
       providers: { main: { baseUrl: provider.baseUrl } },
       reviewers: entries.map(([id, { lab, price }]) => ({
         id,

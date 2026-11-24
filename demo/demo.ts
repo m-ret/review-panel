@@ -42,6 +42,7 @@ writeFileSync(
   join(folder, "panel.json"),
   JSON.stringify({
     limits: { maxUsd: 0.2, maxOutputTokens: 16_000, timeoutSeconds: 10 },
+    labs: Object.fromEntries("abcdefg".split("").map((letter) => [`lab-${letter}`, []])),
     providers: { local: { baseUrl: provider.baseUrl } },
     reviewers: [
       reviewer("alpha", "lab-a", CHEAP, ["payments", "code"]),

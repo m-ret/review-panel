@@ -47,16 +47,16 @@ const limitsSchema = z.strictObject({
 const configSchema = z
   .strictObject({
     limits: limitsSchema.prefault({}),
+    /** Every lab, with the other names its models go by as authors: {"anthropic": ["claude"]}. */
+    labs: z.record(name, z.array(name)),
     providers: z.record(name, providerSchema),
     reviewers: z.array(reviewerSchema).min(2, "a panel needs at least two reviewers"),
-    /** Other names for an author, and the lab each belongs to: {"claude": "anthropic"}. */
-    authors: z.record(name, name).default({}),
   })
   .superRefine((config, context) => {
     const problem = (path: (string | number)[], message: string) =>
       context.addIssue({ code: "custom", path, message });
     const seen = new Set<string>();
-    const labOf = new Map(config.reviewers.map((reviewer) => [reviewer.lab, reviewer.lab]));
+    const labOf = new Map<string, string>();
     /** A name must point to one lab, or an author could be read two ways. */
     const claim = (path: (string | number)[], word: string, lab: string) => {
       if (word === "human") problem(path, "'human' is taken: it means no model wrote the work");
@@ -65,10 +65,17 @@ const configSchema = z
       labOf.set(word, lab);
     };
 
+    for (const lab of Object.keys(config.labs)) claim(["labs", lab], lab, lab);
+    for (const [lab, aliases] of Object.entries(config.labs)) {
+      for (const alias of aliases) claim(["labs", lab], alias, lab);
+    }
     for (const [index, reviewer] of config.reviewers.entries()) {
       if (seen.has(reviewer.id)) problem(["reviewers", index, "id"], `'${reviewer.id}' is used twice`);
       if (["summary", "prompt"].includes(reviewer.id)) {
         problem(["reviewers", index, "id"], `'${reviewer.id}' is the name of another output file`);
+      }
+      if (!Object.hasOwn(config.labs, reviewer.lab)) {
+        problem(["reviewers", index, "lab"], `there is no lab '${reviewer.lab}' under labs`);
       }
       if (!Object.hasOwn(config.providers, reviewer.provider)) {
         problem(["reviewers", index, "provider"], `there is no provider '${reviewer.provider}'`);
@@ -77,7 +84,6 @@ const configSchema = z
       claim(["reviewers", index, "id"], reviewer.id, reviewer.lab);
       claim(["reviewers", index, "model"], reviewer.model.toLowerCase(), reviewer.lab);
     }
-    for (const [alias, lab] of Object.entries(config.authors)) claim(["authors", alias], alias, lab);
     if (new Set(config.reviewers.map((reviewer) => reviewer.lab)).size < 2) {
       problem(["reviewers"], "reviewers must come from at least two different labs");
     }

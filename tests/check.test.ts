@@ -35,6 +35,7 @@ async function check(
   const config = parseConfig(
     JSON.stringify({
       limits: { checkTimeoutSeconds: 1 },
+      labs: { "lab-a": [], "lab-b": [] },
       providers: { main: { baseUrl: provider.baseUrl, apiKeyEnv: "MAIN_API_KEY" } },
       reviewers: [reviewer, { ...reviewer, id: "beta", lab: "lab-b", model: "other" }],
     }),

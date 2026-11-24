@@ -5,6 +5,18 @@
     "maxOutputTokens": 16000,
     "maxUsd": 0.5
   },
+  "labs": {
+    "mistral": [],
+    "nvidia": [],
+    "moonshot": ["kimi"],
+    "minimax": [],
+    "stepfun": [],
+    "zai": ["glm"],
+    "poolside": [],
+    "google": ["gemini", "gemma"],
+    "anthropic": ["claude"],
+    "openai": ["codex", "gpt"]
+  },
   "providers": {
     "nvidia": {
       "baseUrl": "https://integrate.api.nvidia.com/v1",
@@ -76,11 +88,5 @@
       "goodAt": ["docs"],
       "usdPerMillionTokens": { "input": 0, "output": 0 }
     }
-  ],
-  "authors": {
-    "claude": "anthropic",
-    "codex": "openai",
-    "gpt": "openai",
-    "gemini": "google"
-  }
+  ]
 }

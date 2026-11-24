@@ -62,6 +62,7 @@ function project(members: Record<string, Behavior>, config: object = {}) {
     "panel.json",
     JSON.stringify({
       limits: { timeoutSeconds: 2, checkTimeoutSeconds: 2, maxOutputTokens: 1000 },
+      labs: { ...Object.fromEntries(["a", "b", "c", "d"].map((id) => [`lab-${id}`, []])), anthropic: ["claude"] },
       providers: { main: { baseUrl: provider.baseUrl, apiKeyEnv: "MAIN_API_KEY" } },
       reviewers: Object.keys(members).map((id) => ({
         id,
@@ -70,7 +71,6 @@ function project(members: Record<string, Behavior>, config: object = {}) {
         model: id,
         usdPerMillionTokens: { input: 0, output: 0 },
       })),
-      authors: { claude: "anthropic" },
       ...config,
     }),
   );

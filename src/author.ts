@@ -10,11 +10,11 @@ export type Authors = { ok: true; names: string[]; labs: Set<string> } | { ok: f
  */
 export function resolveAuthors(text: string, config: Config): Authors {
   const labOf = new Map<string, string>();
-  for (const { id, lab, model } of config.reviewers) {
-    for (const word of [id, lab, model]) labOf.set(word.toLowerCase(), lab);
+  for (const [lab, aliases] of Object.entries(config.labs)) {
+    for (const word of [lab, ...aliases]) labOf.set(word, lab);
   }
-  for (const [alias, lab] of Object.entries(config.authors)) {
-    for (const word of [alias, lab]) labOf.set(word, lab);
+  for (const { id, lab, model } of config.reviewers) {
+    for (const word of [id, model.toLowerCase()]) labOf.set(word, lab);
   }
 
   const names = text.toLowerCase().split(",").map((name) => name.trim()).filter((name) => name !== "");

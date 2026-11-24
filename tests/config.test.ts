@@ -12,6 +12,7 @@ const reviewer = (over: object = {}) => ({
 });
 
 const config = (over: object = {}) => ({
+  labs: { "lab-a": [], "lab-b": [], anthropic: ["claude"] },
   providers: { main: { baseUrl: "https://api.example.com/v1", apiKeyEnv: "MAIN_API_KEY" } },
   reviewers: [reviewer(), reviewer({ id: "beta", lab: "lab-b", model: "vendor/beta-1" })],
   ...over,
@@ -155,13 +156,19 @@ describe("parseConfig", () => {
     expect(problemOf(config({ reviewers: [reviewer(), reviewer({ id: "alpha-2" })] }))).toContain("two different labs");
   });
 
+  test("a reviewer's lab must be in the list of labs, so a typo cannot separate a reviewer from its author", () => {
+    expect(problemOf(config({ reviewers: [reviewer({ lab: "lab-aa" }), reviewer({ id: "beta", lab: "lab-b" })] }))).toContain(
+      "lab-aa",
+    );
+  });
+
   test("a name that could mean two different labs is refused, so an author always means one", () => {
-    expect(
-      problemOf(config({ reviewers: [reviewer({ id: "lab-b" }), reviewer({ id: "beta", lab: "lab-b" })] })),
-    ).toContain("lab-b");
-    expect(problemOf(config({ authors: { alpha: "lab-b" } }))).toContain("alpha");
-    expect(problemOf(config({ authors: { "lab-a": "lab-b" } }))).toContain("lab-a");
-    expect(problemOf(config({ authors: { alpha: "lab-a" } }))).toBe("(accepted)");
+    const labs = (value: object) => problemOf(config({ labs: { "lab-a": [], "lab-b": [], ...value } }));
+    expect(labs({ anthropic: ["alpha"] })).toContain("alpha"); // a reviewer of lab-a
+    expect(labs({ anthropic: ["lab-b"] })).toContain("lab-b"); // another lab
+    expect(labs({ anthropic: ["claude"], openai: ["claude"] })).toContain("claude");
+    expect(labs({ beta: [] })).toContain("beta"); // a reviewer of lab-b
+    expect(labs({ "lab-a": ["alpha", "lab-a"] })).toBe("(accepted)"); // says what is already so
   });
 
   test("one model cannot be listed under two labs", () => {
@@ -171,7 +178,8 @@ describe("parseConfig", () => {
   });
 
   test("'human' is taken: it means no model wrote the work", () => {
-    expect(problemOf(config({ authors: { human: "lab-a" } }))).toContain("human");
+    expect(problemOf(config({ labs: { "lab-a": ["human"], "lab-b": [] } }))).toContain("human");
+    expect(problemOf(config({ labs: { "lab-a": [], "lab-b": [], human: [] } }))).toContain("human");
     expect(problemOf(config({ reviewers: [reviewer({ id: "human" }), reviewer({ id: "beta" })] }))).toContain("human");
   });
 
