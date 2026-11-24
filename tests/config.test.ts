@@ -185,6 +185,12 @@ describe("readKeys", () => {
     });
   });
 
+  test("a key with characters that cannot go in a header counts as missing", () => {
+    for (const value of ["two words", "line\nbreak", "ünicode-key"]) {
+      expect(readKeys(parsed, { MAIN_API_KEY: value })["main"]).toEqual({ state: "missing", variable: "MAIN_API_KEY" });
+    }
+  });
+
   test("an unset or blank variable is a missing key, named by its variable", () => {
     expect(readKeys(parsed, {})["main"]).toEqual({ state: "missing", variable: "MAIN_API_KEY" });
     expect(readKeys(parsed, { MAIN_API_KEY: "  " })["main"]).toEqual({ state: "missing", variable: "MAIN_API_KEY" });

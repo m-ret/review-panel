@@ -129,7 +129,8 @@ export function readKeys(config: Config, env: Record<string, string | undefined>
     Object.entries(config.providers).map(([id, { apiKeyEnv: variable }]): [string, Key] => {
       if (variable === undefined) return [id, { state: "not-needed" }];
       const key = env[variable]?.trim() ?? "";
-      return [id, key === "" ? { state: "missing", variable } : { state: "present", key }];
+      // Only characters that can travel in an HTTP header.
+      return [id, /^[\x21-\x7e]+$/u.test(key) ? { state: "present", key } : { state: "missing", variable }];
     }),
   );
 }
