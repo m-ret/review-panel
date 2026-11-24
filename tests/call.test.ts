@@ -227,6 +227,20 @@ describe("callModel: when it goes wrong", () => {
     expect(evidence.text.length).toBeLessThan(40_000);
   });
 
+  test("a long answer in many small pieces is fine: the limit on bytes grows with the limit on tokens", async () => {
+    // One token to a frame, a few hundred bytes around each, as real providers send them.
+    const one = frame("m", { reasoning_content: "x", padding: "p".repeat(300) });
+    const ending = [frame("m", { content: "done" }, "stop"), sse("[DONE]")];
+    const ask = (tokens: number, maxOutputTokens: number) =>
+      callModel(target(provide(() => stream([one.repeat(tokens), ...ending]))), PROMPT, {
+        maxOutputTokens,
+        timeoutMs: 5000,
+        secrets: [],
+      });
+    expect(await ask(8000, 8000)).toMatchObject({ end: "closed", text: "done" });
+    expect((await ask(8000, 500)).end).toBe("too-long");
+  });
+
   test("a whole reply that is too long is cut off too", async () => {
     const whole = { choices: [{ message: { content: "y".repeat(50_000) }, finish_reason: "stop" }] };
     const { evidence } = await call(() => Response.json(whole), { maxReplyBytes: 20_000 });

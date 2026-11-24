@@ -1,4 +1,5 @@
 import type { ParsedDiff } from "./diff.ts";
+import { stripControls } from "./text.ts";
 import { AREAS, RISKS, type Area, type Risk } from "./types.ts";
 
 export type Classification = {
@@ -25,14 +26,17 @@ const SENSITIVE_WORDS: Partial<Record<Area, { anywhere: string[]; inPaths: strin
       "auth authn authz oauth sso saml jwt rls csrf cors password passwords permission permissions secret secrets encryption security webhook webhooks".split(
         " ",
       ),
-    inPaths: "login logout signin signup session sessions token role roles crypto encrypt sandbox env".split(" "),
+    inPaths:
+      "login logout signin signup session sessions token role roles admin cookie cookies crypto encrypt sandbox env".split(
+        " ",
+      ),
   },
   payments: {
     anywhere:
       "payment payments billing checkout invoice invoices refund refunds payout payouts subscription subscriptions stripe paypal paddle".split(
         " ",
       ),
-    inPaths: "charge charges price prices pricing tax taxes wallet ledger".split(" "),
+    inPaths: "pay charge charges price prices pricing tax taxes wallet ledger".split(" "),
   },
   data: {
     anywhere: "migration migrations backfill".split(" "),
@@ -81,6 +85,7 @@ export function classifyDiff(diff: ParsedDiff): Classification {
     }
   }
 
+  if (areas.size === 0) areas.add("code");
   const result = (risk: Risk, ...reasons: string[]): Classification => ({ areas: sorted(areas), risk, reasons });
   if (diff.problem) return result("high", `the diff could not be read all the way: ${diff.problem}`, ...sensitive);
   if (sensitive.length + destructive.length > 0) return result("high", ...sensitive, ...destructive);
@@ -124,7 +129,7 @@ function typeOf(path: string): Area {
 
 /** "src/OAuthClient.ts" becomes src, o, auth, client, ts. */
 function wordsOf(text: string): string[] {
-  return text
+  return stripControls(text)
     .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
     .replace(/([A-Z])([A-Z][a-z])/gu, "$1 $2")
     .toLowerCase()

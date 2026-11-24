@@ -66,7 +66,7 @@ export async function runPanel(
   context: Context,
   steps: {
     onChecks?: (failedChecks: ReadonlyMap<string, Failure>) => void;
-    onSeats?: (seats: readonly Reviewer[], wanted: number) => void;
+    onSeats?: (seats: readonly Reviewer[], wanted: number, bench: readonly Bench[]) => void;
     onResult?: ((result: SeatResult) => void | Promise<void>) | undefined;
   } = {},
 ): Promise<Panel> {
@@ -92,6 +92,8 @@ export async function runPanel(
     reserve: (reviewer) => budget.reserve(reviewer.id, worstCaseOf(reviewer, plan, maxOutputTokens)),
   });
 
+  steps.onSeats?.(seats, wanted, bench);
+
   if (seats.length < FEWEST_SEATS) {
     for (const reviewer of seats) {
       budget.settle(reviewer.id, 0);
@@ -99,8 +101,6 @@ export async function runPanel(
     }
     return { state: "not-started", wanted, seats: [], bench, results: [], spent: budget.spent(), isOverCap: budget.isOver() };
   }
-  steps.onSeats?.(seats, wanted);
-
   const results = await Promise.all(
     seats.map(async (reviewer) => {
       const result = await review(reviewer, plan, context);

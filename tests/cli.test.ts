@@ -134,6 +134,34 @@ describe("a run", () => {
     expect(provider.requests).toEqual([]);
   });
 
+  test("a reviewer that does not fit under the cap is named, with the reason", async () => {
+    const member = (id: string, output: number) => ({
+      id,
+      lab: `lab-${id}`,
+      provider: "main",
+      model: id,
+      usdPerMillionTokens: { input: 0, output },
+    });
+    const { folder } = project(
+      { ...three(), d: reviews() },
+      {
+        limits: { timeoutSeconds: 2, checkTimeoutSeconds: 2, maxOutputTokens: 1000, maxUsd: 0.05 },
+        reviewers: [member("a", 0), member("b", 60), member("c", 0), member("d", 0)],
+      },
+    );
+    const { err, exit } = await cli(folder, [...RANGE, "--author", "claude"]);
+    expect(err).toMatch(/not seated: b: over-budget/u);
+    expect(exit).toBe(0);
+  });
+
+  test("a file name cannot restyle the terminal", async () => {
+    const { folder } = project(three());
+    write(folder, "one.diff", "--- a/src/\u001b[31mauth.ts\n+++ b/src/\u001b[31mauth.ts\n@@ -1 +1 @@\n-a\n+b\n");
+    const { err } = await cli(folder, ["--diff", "one.diff", "--author", "claude"]);
+    expect(err).toContain("auth");
+    expect(err).not.toContain("\u001b");
+  });
+
   test("the author's model is not asked", async () => {
     const { folder, provider } = project({ ...three(), d: reviews() });
     await cli(folder, [...RANGE, "--author", "b"]);
@@ -259,6 +287,10 @@ describe("what it refuses, before anything is sent", () => {
   test("nothing to review, or two things at once", async () => {
     expect((await refused(["--author", "claude"])).err).toContain("--range");
     expect((await refused([...RANGE, "--question", "panel.json", "--author", "claude"])).err).toContain("one of");
+  });
+
+  test("paths for something that is not a range, where they would do nothing", async () => {
+    expect((await refused(["--diff", "panel.json", "--author", "claude", "--", "docs"])).err).toContain("--range");
   });
 
   test("a range without changes", async () => {

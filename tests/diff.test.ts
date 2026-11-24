@@ -238,6 +238,11 @@ describe("parseDiff", () => {
       files: [{ path: "x" }, { path: "src/a.ts", added: 2, removed: 1 }],
       problem: "line 5 does not fit the hunk it is in",
     });
+    const cutShort = lines("--- a/x", "+++ b/x", "@@ -1,9 +1,9 @@", " a");
+    expect(parseDiff(cutShort + MODIFIED)).toMatchObject({
+      files: [{ path: "x" }, { path: "src/a.ts", added: 2, removed: 1 }],
+      problem: "line 5 does not fit the hunk it is in",
+    });
   });
 
   test("says so when a hunk holds a line that is not part of a diff", () => {

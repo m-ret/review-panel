@@ -28,8 +28,12 @@ export type Target = {
   streamUsage: boolean;
 };
 
-const MAX_REPLY_BYTES = 5_000_000;
 const MAX_REFUSAL_BYTES = 50_000;
+
+/** A streamed token travels in a frame of its own, with a few hundred bytes around it. */
+function mostReplyBytes(maxOutputTokens: number): number {
+  return 1_000_000 + maxOutputTokens * 1_000;
+}
 
 /**
  * One request to one model. It never throws: whatever happens comes back as
@@ -41,6 +45,7 @@ export async function callModel(
   options: { maxOutputTokens: number; timeoutMs: number; secrets: readonly string[]; maxReplyBytes?: number },
 ): Promise<Evidence> {
   const started = performance.now();
+  const maxReplyBytes = options.maxReplyBytes ?? mostReplyBytes(options.maxOutputTokens);
   const reply = createReply();
   let status: number | null = null;
   let retryAfter: string | null = null;
@@ -78,11 +83,11 @@ export async function callModel(
       refusal = { code: parsed.result().error?.code ?? null, body: body.join("") };
     } else if (response.headers.get("content-type")?.includes("json")) {
       const body: string[] = [];
-      end = await readText(response, options.maxReplyBytes ?? MAX_REPLY_BYTES, (text) => body.push(text));
+      end = await readText(response, maxReplyBytes, (text) => body.push(text));
       reply.addWhole(body.join(""));
     } else {
       const reader = createSseReader((data) => reply.add(data));
-      end = await readText(response, options.maxReplyBytes ?? MAX_REPLY_BYTES, (text) => {
+      end = await readText(response, maxReplyBytes, (text) => {
         reader.push(text);
         return reply.result().done;
       });

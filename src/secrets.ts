@@ -8,6 +8,7 @@ const FORMATS: [string, RegExp][] = [
   ["a model provider key", /\bsk-(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Z])[A-Za-z0-9_-]{20,}/u],
   ["an NVIDIA key", /\bnvapi-[A-Za-z0-9_-]{20,}/u],
   ["a Google API key", /\bAIza[0-9A-Za-z_-]{35}/u],
+  ["a signed token (JWT)", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u],
   ["a Slack token", /\bxox[abeoprs]-[0-9A-Za-z-]{10,}/u],
   // Only with key material after it: code that merely mentions the header is fine.
   ["a private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\s*\n[+ -]?\s*|\\n)[A-Za-z0-9+/=]{40,}/u],

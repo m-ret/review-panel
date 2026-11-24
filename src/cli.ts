@@ -11,9 +11,9 @@ import { ConfigError, parseConfig, readKeys, type Config } from "./config.ts";
 import { InputError, readInput, type Input } from "./input.ts";
 import { planPanel, runPanel, worstCaseOf, type Panel, type Plan } from "./panel.ts";
 import { countAnswered, plural, reviewerMarkdown, sizeOf, summaryJson, summaryMarkdown } from "./report.ts";
-import { chooseSeats } from "./seats.ts";
+import { chooseSeats, FEWEST_SEATS } from "./seats.ts";
 import { findSecrets } from "./secrets.ts";
-import { oneLine } from "./text.ts";
+import { oneLine, stripControls } from "./text.ts";
 import { RISKS, type Risk } from "./types.ts";
 
 const HELP = `review-panel sends a diff or a question to two to four AI models that did not write it.
@@ -40,7 +40,7 @@ Exit codes: 0 every seat answered, 1 a seat is missing or did not answer,
 const EXIT: Record<Panel["state"], number> = { complete: 0, incomplete: 1, "not-started": 3 };
 const REFUSED = 2;
 
-const say = (line: string) => console.error(line);
+const say = (text: string) => console.error(stripControls(text));
 
 async function main(): Promise<number> {
   const { values, positionals } = readArguments();
@@ -75,7 +75,14 @@ async function main(): Promise<number> {
     onChecks: (failed) => {
       for (const [id, { reason, detail }] of failed) say(`check failed: ${id}: ${reason} (${detail})`);
     },
-    onSeats: (seats, wanted) => say(`asking ${seats.length} of ${wanted}: ${seats.map((seat) => seat.id).join(", ")}`),
+    onSeats: (seats, wanted, bench) => {
+      for (const { reviewer, reason, detail } of bench) {
+        if (reason === "over-budget") say(`not seated: ${reviewer.id}: ${reason} (${detail})`);
+      }
+      if (seats.length >= FEWEST_SEATS) {
+        say(`asking ${seats.length} of ${wanted}: ${seats.map((seat) => seat.id).join(", ")}`);
+      }
+    },
     onResult: (result) => {
       writeFileSync(join(out, `${result.reviewer.id}.md`), reviewerMarkdown(result));
       const { outcome } = result;

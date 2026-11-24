@@ -20,6 +20,7 @@ describe("findSecrets", () => {
       "a model provider key": fake("sk", "-proj-", letters.slice(0, 32)),
       "an NVIDIA key": fake("nv", "api-", letters),
       "a Google API key": fake("AI", "za", letters.slice(0, 35)),
+      "a signed token (JWT)": fake("ey", "JhbGciOiJIUzI1NiJ9", ".", "ey", "Jyb2xlIjoic2VydmljZSJ9", ".", letters),
       "a Slack token": fake("xo", "xb-", "123456789012-abcdefGHIJ"),
       "a Stripe live key": fake("sk", "_live_", letters.slice(0, 24)),
     };

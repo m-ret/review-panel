@@ -28,6 +28,12 @@ describe("classifyDiff: what the change touches", () => {
     expect(areas({ path: "src/lib/processRefund.ts" })).toEqual(["payments", "code"]);
   });
 
+  test("short names that only mean one thing in a path count too", () => {
+    expect(areas({ path: "src/pay.ts" })).toEqual(["payments", "code"]);
+    expect(areas({ path: "src/admin/users.ts" })).toEqual(["security", "code"]);
+    expect(areas({ path: "src/cookies.ts" })).toEqual(["security", "code"]);
+  });
+
   test("the file type decides when no word does", () => {
     expect(areas({ path: "src/Button.tsx" })).toEqual(["frontend"]);
     expect(areas({ path: "src/parse.ts" })).toEqual(["code"]);
@@ -130,6 +136,7 @@ describe("classifyDiff: risk", () => {
   test("a diff that could not be read is high, because nobody knows what it holds", () => {
     const result = classifyDiff({ files: [], problem: "no changed file found" });
     expect(result.risk).toBe("high");
+    expect(result.areas).toEqual(["code"]);
     expect(result.reasons.join()).toContain("no changed file found");
   });
 
