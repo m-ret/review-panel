@@ -228,11 +228,14 @@ describe("parseDiff", () => {
     expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ -1 +1,2 @@", "-a", "-b", "+c", "+d")).problem).toContain("line 5");
   });
 
-  test("a hunk that claims more lines than it has cannot hide the next file without a problem being said", () => {
+  test("a hunk that claims more lines than it has swallows the next header, as it does for git, or leaves a problem", () => {
     const next = ["--- a/src/auth.ts", "+++ b/src/auth.ts", "@@ -1 +1 @@", "-a", "+b"];
-    for (const claim of ["@@ -1,2 +1,2 @@", "@@ -1,3 +1,3 @@", "@@ -1,9 +1,9 @@", "@@ -1,99999999999999999999 +1 @@"]) {
-      expect(parseDiff(lines("--- a/x", "+++ b/x", claim, " a", ...next)).problem).not.toBeNull();
+    const read = (claim: string) => parseDiff(lines("--- a/x", "+++ b/x", claim, " a", ...next));
+    for (const claim of ["@@ -1,3 +1,3 @@", "@@ -1,9 +1,9 @@", "@@ -1,99999999999999999999 +1 @@"]) {
+      expect(read(claim).problem).not.toBeNull();
     }
+    // Here the counts come out even, so both header lines are content. "git apply --numstat" says the same: 2 2 x.
+    expect(read("@@ -1,2 +1,2 @@")).toMatchObject({ files: [{ path: "x", added: 2, removed: 2 }], problem: null });
   });
 
   test("says so when a hunk header cannot be read", () => {
