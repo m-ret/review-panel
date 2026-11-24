@@ -59,6 +59,15 @@ describe("parseConfig", () => {
     expect(problem).not.toContain(value);
   });
 
+  test("the hint about keys is there even when another setting is wrong too", () => {
+    const main = { baseUrl: "https://api.example.com/v1", apiKey: "x", colour: "red" };
+    expect(problemOf(config({ providers: { main } }))).toContain("environment variable");
+  });
+
+  test("a provider speaks the usual dialect unless the config says otherwise", () => {
+    expect(parse(config()).providers["main"]).toMatchObject({ maxTokensParam: "max_tokens", streamUsage: true });
+  });
+
   test("a key pasted where the variable name belongs is refused, and the message does not repeat it", () => {
     const value = "nv-0123456789abcdef";
     const problem = problemOf(

@@ -219,6 +219,28 @@ describe("callModel: when it goes wrong", () => {
     expect(evidence.text.length).toBeLessThan(40_000);
   });
 
+  test("a whole reply that is too long is cut off too", async () => {
+    const whole = { choices: [{ message: { content: "y".repeat(50_000) }, finish_reason: "stop" }] };
+    const { evidence } = await call(() => Response.json(whole), { maxReplyBytes: 20_000 });
+    expect(evidence).toMatchObject({ end: "too-long", text: "" });
+  });
+
+  test("a model that is silent for longer than Bun's own idle limit is not cut off by it", async () => {
+    // The limit is five minutes by default. Here it is set to its shortest, about eight seconds.
+    const provider = provide(() => stream([9500, frame("m", { content: "slow but fine" }, "stop"), sse("[DONE]")]));
+    const script = `
+      import { callModel } from ${JSON.stringify(new URL("../src/call.ts", import.meta.url).pathname)};
+      const target = ${JSON.stringify(target(provider, { key: null }))};
+      const evidence = await callModel(target, "p", { maxOutputTokens: 5, timeoutMs: 20000, secrets: [] });
+      console.log(evidence.end, evidence.text);
+    `;
+    const child = Bun.spawn(["bun", "-e", script], {
+      env: { PATH: process.env["PATH"] ?? "", BUN_CONFIG_HTTP_IDLE_TIMEOUT: "1" },
+      stdout: "pipe",
+    });
+    expect((await new Response(child.stdout).text()).trim()).toBe("closed slow but fine");
+  }, 20_000);
+
   test("a key that cannot be sent in a header fails as a call, and is not printed", async () => {
     const bad = "bad\nkey-value";
     const provider = provide(says("x"));

@@ -60,6 +60,13 @@ describe("createBudget", () => {
     expect(budget.reserve("b", 1)).toBe(false);
   });
 
+  test("spending the whole cap is not going over it", () => {
+    const budget = createBudget(0.01);
+    budget.reserve("a", 10_000);
+    budget.settle("a", 10_000);
+    expect(budget.isOver()).toBe(false);
+  });
+
   test("settling something that was never reserved is a bug, not a free call", () => {
     expect(() => createBudget(1).settle("ghost", 5)).toThrow("ghost");
   });

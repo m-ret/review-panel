@@ -96,9 +96,10 @@ const filesIn = (folder: string) => readdirSync(folder).sort();
 describe("a run", () => {
   test("when everyone answers, exits 0 and writes one file for each reviewer plus the summary", async () => {
     const { folder } = project(three());
-    const { exit, out } = await cli(folder, [...RANGE, "--author", "claude", "--out", "result"]);
+    const { exit, out, err } = await cli(folder, [...RANGE, "--author", "claude", "--out", "result"]);
     expect(exit).toBe(0);
     expect(out).toBe(`${join("result", "summary.md")}\n`);
+    expect(err.trim().split("\n").at(-1)).toBe("3 of 3 reviewers answered. The decision is yours.");
     expect(filesIn(join(folder, "result"))).toEqual(["a.md", "b.md", "c.md", "prompt.txt", "summary.json", "summary.md"]);
     expect(readFileSync(join(folder, "result/summary.md"), "utf8")).toContain("3 of 3 reviewers answered");
     expect(readFileSync(join(folder, "result/prompt.txt"), "utf8")).toContain("+export const more = 2;");
@@ -109,7 +110,9 @@ describe("a run", () => {
     const { folder } = project({ a: reviews(), b: limited, c: reviews() });
     const { exit, err } = await cli(folder, [...RANGE, "--author", "claude", "--out", "result"]);
     expect(exit).toBe(1);
-    expect(err).toContain("2 of 3");
+    expect(err.trim().split("\n").at(-1)).toBe(
+      "2 of 3 reviewers answered. This panel is not complete. A missing answer is not agreement. The decision is yours.",
+    );
     expect(err).toMatch(/b.*rate-limited/u);
     expect(readFileSync(join(folder, "result/b.md"), "utf8")).toContain("slow down");
   });
@@ -146,6 +149,13 @@ describe("a run", () => {
     expect(written.join("\n")).toContain("[key]");
   });
 
+  test("an output folder may be empty already, or not exist yet at any depth", async () => {
+    const { folder } = project(three());
+    mkdirSync(join(folder, "empty"));
+    expect((await cli(folder, [...RANGE, "--author", "claude", "--out", "empty"])).exit).toBe(0);
+    expect((await cli(folder, [...RANGE, "--author", "claude", "--out", "deep/er/still"])).exit).toBe(0);
+  });
+
   test("the default output folder is new each time and stays out of git", async () => {
     const { folder } = project(three());
     await cli(folder, [...RANGE, "--author", "claude"]);
@@ -165,11 +175,28 @@ describe("what it reads", () => {
     expect(prompt).not.toContain("src/parse.ts");
   });
 
-  test("the paths are kept in the summary, because the rest was not reviewed", async () => {
+  test("the summary says exactly what was reviewed, paths and all, because the rest was not", async () => {
+    const answers = says((request) => `Because.\n${signOff(request, "0")}`);
+    const { folder } = project({ a: answers, b: answers, c: answers });
+    const diff = "--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n";
+    write(folder, "one.diff", diff);
+    const sourceOf = async (out: string, args: string[], stdin?: string) => {
+      await cli(folder, [...args.slice(0, 2), "--author", "claude", "--out", out, ...args.slice(2)], stdin === undefined ? {} : { stdin });
+      return JSON.parse(readFileSync(join(folder, out, "summary.json"), "utf8")).source;
+    };
+    expect(await sourceOf("1", RANGE)).toBe("git diff HEAD~1..HEAD");
+    expect(await sourceOf("2", [...RANGE, "--", "docs"])).toBe("git diff HEAD~1..HEAD -- docs");
+    expect(await sourceOf("3", ["--diff", "one.diff"])).toBe("one.diff");
+    expect(await sourceOf("4", ["--diff", "-"], diff)).toBe("a diff from standard input");
+    expect(await sourceOf("5", ["--question", "one.diff"])).toBe("one.diff");
+    expect(await sourceOf("6", ["--question", "-"], "Queue or cron?")).toBe("a question from standard input");
+  });
+
+  test("a branch with a hyphen in its name is a range like any other", async () => {
     const { folder } = project(three());
-    await cli(folder, [...RANGE, "--author", "claude", "--out", "result", "--", "docs"]);
-    const summary = JSON.parse(readFileSync(join(folder, "result/summary.json"), "utf8"));
-    expect(summary.source).toBe("git diff HEAD~1..HEAD -- docs");
+    git(folder, "branch", "feature-x");
+    git(folder, "reset", "-q", "--hard", "HEAD~1");
+    expect((await cli(folder, ["--range", "main...feature-x", "--author", "claude", "--config", "panel.json"])).exit).toBe(0);
   });
 
   test("a diff from a file or from standard input", async () => {
@@ -285,6 +312,15 @@ describe("what it refuses, before anything is sent", () => {
     expect(err).toContain("--");
   });
 
+  test("a change of exactly the size limit is fine", async () => {
+    const diff = "--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n";
+    const padded = diff.replace("+new", `+${"n".repeat(1000 - diff.length + 3)}`);
+    expect(Buffer.byteLength(padded)).toBe(1000);
+    const { folder } = project(three(), { limits: { maxInputBytes: 1000 } });
+    write(folder, "one.diff", padded);
+    expect((await cli(folder, ["--diff", "one.diff", "--author", "claude"])).exit).toBe(0);
+  });
+
   test("an output folder that already holds something", async () => {
     const { err, folder } = await refused([...RANGE, "--author", "claude", "--out", "old"], (one) =>
       write(one, "old/summary.md", "from another run"),
@@ -303,6 +339,27 @@ describe("--dry-run", () => {
     expect(out).toContain("medium");
     expect(out).toMatch(/b, c, d/u);
     expect(filesIn(join(folder, "result"))).toEqual(["prompt.txt"]);
+  });
+
+  test("shows the worst case of the whole panel against the cap, and who would not fit", async () => {
+    const price = (output: number) => ({ input: 0, output });
+    const member = (id: string, output: number) => ({
+      id,
+      lab: `lab-${id}`,
+      provider: "main",
+      model: id,
+      usdPerMillionTokens: price(output),
+    });
+    const { folder } = project(
+      { a: reviews() },
+      {
+        limits: { maxOutputTokens: 1000, maxUsd: 0.05 },
+        reviewers: [member("a", 10), member("b", 60), member("c", 20), member("d", 5)],
+      },
+    );
+    const { out } = await cli(folder, [...RANGE, "--author", "claude", "--dry-run"]);
+    expect(out).toContain("If every check passes: a, c, d. Worst case $0.035 of $0.05.");
+    expect(out).toContain("not b: over-budget");
   });
 });
 

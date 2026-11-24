@@ -72,7 +72,7 @@ describe("judge: what does not", () => {
   };
 
   test("no text at all", () => {
-    expect(reasonOf({ text: "  \n" })).toBe("empty");
+    expect(diff({ text: "  \n" })).toEqual({ answered: false, reason: "empty", detail: "the provider sent no text" });
   });
 
   test("no text because the whole limit went on hidden reasoning, and the detail says so", () => {

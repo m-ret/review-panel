@@ -48,8 +48,50 @@ describe("parseDiff", () => {
       "@@ -1 +0,0 @@",
       "-x",
     );
-    expect(parseDiff(added).files[0]).toMatchObject({ path: "src/new.ts", oldPath: null });
-    expect(parseDiff(deleted).files[0]).toMatchObject({ path: "src/auth/old.ts", oldPath: "src/auth/old.ts" });
+    expect(parseDiff(added).files).toMatchObject([{ path: "src/new.ts", oldPath: null, added: 1, removed: 0 }]);
+    expect(parseDiff(deleted).files).toMatchObject([
+      { path: "src/auth/old.ts", oldPath: "src/auth/old.ts", added: 0, removed: 1 },
+    ]);
+  });
+
+  test("reads several files of a plain diff, which has no 'diff --git' lines", () => {
+    const plain = lines("--- src/a.ts", "+++ src/a.ts", "@@ -1 +1 @@", "-a", "+b");
+    expect(parseDiff(plain + plain.replaceAll("a.ts", "b.ts")).files).toMatchObject([
+      { path: "src/a.ts", added: 1, removed: 1 },
+      { path: "src/b.ts", added: 1, removed: 1 },
+    ]);
+  });
+
+  test("a hunk may end with removed lines or with added lines", () => {
+    const ends = (header: string, ...body: string[]) =>
+      parseDiff(lines("--- a/x", "+++ b/x", header, ...body)).files[0];
+    expect(ends("@@ -1,3 +1 @@", " a", "-b", "-c")).toMatchObject({ added: 0, removed: 2 });
+    expect(ends("@@ -1 +1,3 @@", " a", "+b", "+c")).toMatchObject({ added: 2, removed: 0 });
+  });
+
+  test("the last line counts even when the text does not end with a line break", () => {
+    expect(parseDiff(MODIFIED.trimEnd().replace(/\n three$/u, "\n three\n-x").replace("-1,3 +1,4", "-1,4 +1,4"))).toMatchObject({
+      files: [{ added: 2, removed: 2 }],
+      problem: null,
+    });
+  });
+
+  test("text around the diff, such as a commit message that quotes one, adds no files", () => {
+    const message = lines(
+      "commit 4b1f0d2",
+      "",
+      "    This reverts what diff --git a/src/auth.ts b/src/auth.ts did:",
+      "    diff --git a/src/auth.ts b/src/auth.ts",
+      "    new file mode 100644",
+      "    --- a/src/auth.ts",
+      "    +++ b/src/auth.ts",
+      "    @@ -1 +1 @@",
+      "--- a line of its own",
+      "+++ another line of its own",
+      "",
+    ).replace("--- a line of its own\n", "--- a line of its own\nand text under it\n");
+    expect(parseDiff(message + MODIFIED)).toMatchObject({ files: [{ path: "src/a.ts", added: 2 }], problem: null });
+    expect(paths(message + MODIFIED)).toEqual(["src/a.ts"]);
   });
 
   test("a removed line that starts with '-- ' is content, not the header of another file", () => {
@@ -107,6 +149,20 @@ describe("parseDiff", () => {
     expect(paths(diff)).toEqual(["img/a b.png", "deploy.sh"]);
   });
 
+  test("a path with ' b/' in it, or with quotes, is read whole even when only the header names it", () => {
+    const modeChange = (header: string) => paths(lines(header, "old mode 100644", "new mode 100755"));
+    expect(modeChange("diff --git a/x b/y.sh b/x b/y.sh")).toEqual(["x b/y.sh"]);
+    expect(modeChange('diff --git "a/caf\\303\\251.sh" "b/caf\\303\\251.sh"')).toEqual(["café.sh"]);
+  });
+
+  test("a/ and b/ are only dropped when both sides have them", () => {
+    const named = (oldName: string, newName: string) =>
+      parseDiff(lines(`--- ${oldName}`, `+++ ${newName}`, "@@ -1 +1 @@", "-a", "+b")).files[0];
+    expect(named("a/x.ts", "lib/x.ts")).toMatchObject({ oldPath: "a/x.ts", path: "lib/x.ts" });
+    expect(named("data/x.ts", "lib/x.ts")).toMatchObject({ oldPath: "data/x.ts", path: "lib/x.ts" });
+    expect(named("a/x.ts", "b/x.ts")).toMatchObject({ oldPath: "x.ts", path: "x.ts" });
+  });
+
   test("reads a quoted path with escaped bytes", () => {
     const diff = lines(
       'diff --git "a/caf\\303\\251/\\"q\\".ts" "b/caf\\303\\251/\\"q\\".ts"',
@@ -161,6 +217,29 @@ describe("parseDiff", () => {
     expect(parseDiff(cut).problem).toContain("stops in the middle");
   });
 
+  test("says so even when only added lines, or only removed lines, are missing from it", () => {
+    const cut = (header: string) => parseDiff(lines("--- a/x", "+++ b/x", header, " a")).problem;
+    expect(cut("@@ -1 +1,2 @@")).toContain("stops in the middle");
+    expect(cut("@@ -1,2 +1 @@")).toContain("stops in the middle");
+  });
+
+  test("says so when a hunk holds more lines of one kind than its header promised", () => {
+    expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ -1,2 +1 @@", "+a", "+b", "-c", "-d")).problem).toContain("line 5");
+    expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ -1 +1,2 @@", "-a", "-b", "+c", "+d")).problem).toContain("line 5");
+  });
+
+  test("says so when a hunk header cannot be read", () => {
+    expect(parseDiff(lines("--- a/x", "+++ b/x", "@@ nonsense @@", "+a")).problem).toContain("line 3");
+  });
+
+  test("after a broken hunk it still finds the files that follow", () => {
+    const broken = lines("--- a/x", "+++ b/x", "@@ -1,3 +1,3 @@", " a", "not a diff line", "-b", "+c");
+    expect(parseDiff(broken + MODIFIED)).toMatchObject({
+      files: [{ path: "x" }, { path: "src/a.ts", added: 2, removed: 1 }],
+      problem: "line 5 does not fit the hunk it is in",
+    });
+  });
+
   test("says so when a hunk holds a line that is not part of a diff", () => {
     const broken = lines("--- a/x", "+++ b/x", "@@ -1,3 +1,3 @@", " a", "not a diff line", "-b", "+c");
     expect(parseDiff(broken).problem).toContain("line 5");
@@ -169,6 +248,7 @@ describe("parseDiff", () => {
   test("says so for a merge diff, whose hunks count differently", () => {
     const merge = lines("diff --cc src/a.ts", "--- a/src/a.ts", "+++ b/src/a.ts", "@@@ -1,2 -1,2 +1,2 @@@", "  a");
     expect(parseDiff(merge).problem).toContain("merge");
+    expect(paths(merge)).toEqual(["src/a.ts"]);
   });
 
   test("says so when there is nothing that looks like a changed file", () => {

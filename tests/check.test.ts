@@ -12,7 +12,7 @@ import {
 } from "../demo/fake-provider.ts";
 import { createBudget } from "../src/budget.ts";
 import { checkReviewer } from "../src/check.ts";
-import { parseConfig } from "../src/config.ts";
+import { type Key, parseConfig } from "../src/config.ts";
 
 const open: FakeProvider[] = [];
 afterEach(async () => {
@@ -41,9 +41,15 @@ async function check(
   );
   const budget = createBudget(over.maxUsd ?? 1);
   const key = over.key === undefined ? "k-test" : over.key;
+  const state: Key =
+    key === null
+      ? { state: "missing", variable: "MAIN_API_KEY" }
+      : key === "not-needed"
+        ? { state: "not-needed" }
+        : { state: "present", key };
   const failure = await checkReviewer(config.reviewers[0]!, {
     config,
-    keys: { main: key === null ? { state: "missing", variable: "MAIN_API_KEY" } : { state: "present", key } },
+    keys: { main: state },
     budget,
     secrets: key === null ? [] : [key],
   });
@@ -60,6 +66,13 @@ describe("checkReviewer", () => {
     const { body, prompt } = provider.requests[0]!;
     expect(body["max_tokens"]).toBe(16);
     expect(prompt.length).toBeLessThan(60);
+  });
+
+  test("the key of its provider goes with it, and a provider that needs none gets none", async () => {
+    const { provider } = await check(says("ready"));
+    expect(provider.requests[0]!.headers.get("authorization")).toBe("Bearer k-test");
+    const open = await check(says("ready"), { key: "not-needed" });
+    expect(open.provider.requests[0]!.headers.get("authorization")).toBeNull();
   });
 
   test("a reasoning model that spends all sixteen tokens thinking passes: the key, the model and the address work", async () => {

@@ -114,15 +114,13 @@ function withoutPrefixes(oldPath: string | null, newPath: string | null): [strin
   return isGit ? [oldPath?.slice(2) ?? null, newPath?.slice(2) ?? null] : [oldPath, newPath];
 }
 
-/** "a/x b/x". The two halves are equal unless the file was renamed, and then the rename lines win. */
+/** "a/x b/x". The two halves are equal unless the file was renamed, and then the rename lines name it. */
 function pathFromGitHeader(rest: string): string {
-  if (rest.startsWith('"')) {
-    const end = /^"(?:[^"\\]|\\.)*"/u.exec(rest);
-    return unquote(end?.[0] ?? rest).replace(/^a\//u, "");
-  }
+  const quoted = /^"(?:[^"\\]|\\.)*"/u.exec(rest)?.[0];
+  if (quoted !== undefined) return unquote(quoted).replace(/^a\//u, "");
   const length = (rest.length - "a/ b/".length) / 2;
   const path = rest.slice(2, 2 + length);
-  return rest === `a/${path} b/${path}` ? path : rest.slice(rest.lastIndexOf(" b/") + 3);
+  return rest === `a/${path} b/${path}` ? path : rest;
 }
 
 /** Undoes git's quoting of unusual paths: "caf\303\251" is café. */

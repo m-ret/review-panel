@@ -155,12 +155,33 @@ describe("classifyQuestion", () => {
     expect(result.reasons).toEqual(["the question mentions payments (refunds), data (migration)"]);
   });
 
+  test("one sensitive word is enough", () => {
+    expect(classifyQuestion("Where should the refund live?")).toEqual({
+      areas: ["payments", "design"],
+      risk: "high",
+      reasons: ["the question mentions payments (refund)"],
+    });
+  });
+
+  test("a sensitive word and destructive work are both named", () => {
+    expect(classifyQuestion("In the migration, do we drop column email?")).toMatchObject({
+      risk: "high",
+      reasons: [
+        "the question mentions data (migration)",
+        "the question mentions work that drops a table or column",
+      ],
+    });
+  });
+
   test("words that only mean something in a file path do not raise a question", () => {
     expect(classifyQuestion("What role does the token limit play in this session?").risk).toBe("medium");
   });
 
   test("a question about destroying data is high risk", () => {
-    expect(classifyQuestion("Is it fine to drop column email now?").risk).toBe("high");
+    expect(classifyQuestion("Is it fine to drop column email now?")).toMatchObject({
+      risk: "high",
+      reasons: ["the question mentions work that drops a table or column"],
+    });
   });
 });
 

@@ -21,6 +21,14 @@
       "usdPerMillionTokens": { "input": 0, "output": 0 }
     },
     {
+      "id": "nemotron",
+      "lab": "nvidia",
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "goodAt": ["payments", "data", "design", "code"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
       "id": "kimi",
       "lab": "moonshot",
       "provider": "nvidia",
@@ -29,11 +37,11 @@
       "usdPerMillionTokens": { "input": 0, "output": 0 }
     },
     {
-      "id": "nemotron",
-      "lab": "nvidia",
+      "id": "minimax",
+      "lab": "minimax",
       "provider": "nvidia",
-      "model": "nvidia/nemotron-3-ultra-550b-a55b",
-      "goodAt": ["data", "design", "code"],
+      "model": "minimaxai/minimax-m3.1-flash",
+      "goodAt": ["frontend", "code"],
       "usdPerMillionTokens": { "input": 0, "output": 0 }
     },
     {
@@ -50,14 +58,6 @@
       "provider": "nvidia",
       "model": "z-ai/glm-5.3-flash",
       "goodAt": ["design", "frontend"],
-      "usdPerMillionTokens": { "input": 0, "output": 0 }
-    },
-    {
-      "id": "minimax",
-      "lab": "minimax",
-      "provider": "nvidia",
-      "model": "minimaxai/minimax-m3.1-flash",
-      "goodAt": ["frontend", "docs"],
       "usdPerMillionTokens": { "input": 0, "output": 0 }
     },
     {
