@@ -35,8 +35,7 @@ const NO_CREDIT = /insufficient[_ ](?:quota|balance|funds|credits?)|exceeded you
 export function transportFailure(evidence: Evidence): Failure | null {
   const { end, status, refusal } = evidence;
   if (end === "timeout") {
-    const arrived = evidence.text === "" ? "" : ` (${evidence.text.length} characters had arrived)`;
-    return { reason: "timeout", detail: `no complete reply after ${Math.round(evidence.ms / 1000)} s${arrived}` };
+    return { reason: "timeout", detail: `no complete reply after ${Math.round(evidence.ms / 1000)} s${soFar(evidence)}` };
   }
   if (end === "network") return { reason: "network", detail: `the connection failed: ${refusal?.note ?? "no details"}` };
   if (end === "too-long") return { reason: "provider-error", detail: "the reply was too long and was stopped" };
@@ -55,6 +54,11 @@ export function transportFailure(evidence: Evidence): Failure | null {
   const wait = evidence.retryAfter === null ? "" : ` (retry after ${evidence.retryAfter})`;
   const note = refusal?.note ? `: ${refusal.note}` : "";
   return { reason: refusalReason(effective, code ?? "", refusal?.note ?? ""), detail: `${label}${note}${wait}` };
+}
+
+function soFar({ text, reasoningChars }: Evidence): string {
+  if (text !== "") return ` (${text.length} characters had arrived)`;
+  return reasoningChars > 0 ? ` (only hidden reasoning had arrived, ${reasoningChars} characters)` : "";
 }
 
 function refusalReason(status: number | null, code: string, note: string): NoAnswer {

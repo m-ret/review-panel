@@ -170,6 +170,9 @@ describe("transportFailure", () => {
       detail: "no complete reply after 300 s (14 characters had arrived)",
     });
     expect(failure({ end: "timeout", ms: 60_000, status: null })?.detail).toBe("no complete reply after 60 s");
+    expect(failure({ end: "timeout", ms: 60_000, reasoningChars: 8031 })?.detail).toBe(
+      "no complete reply after 60 s (only hidden reasoning had arrived, 8031 characters)",
+    );
   });
 
   test("a page that is not a chat completion is a failure, even with status 200", () => {
