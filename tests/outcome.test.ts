@@ -161,17 +161,17 @@ describe("transportFailure", () => {
 
   test("the detail keeps the status, the provider's words and how long to wait", () => {
     const detail = failure({ status: 429, refusal: { code: null, note: "Slow down" }, retryAfter: "60" })?.detail;
-    expect(detail).toBe("HTTP 429: Slow down (retry after 60)");
+    expect(detail).toBe("HTTP 429: Slow down, retry after 60");
   });
 
   test("a timeout says how long it waited and how much had arrived", () => {
     expect(failure({ end: "timeout", ms: 300_400, text: "half an answer", status: 200 })).toEqual({
       reason: "timeout",
-      detail: "no complete reply after 300 s (14 characters had arrived)",
+      detail: "no complete reply after 300 s, 14 characters had arrived",
     });
     expect(failure({ end: "timeout", ms: 60_000, status: null })?.detail).toBe("no complete reply after 60 s");
     expect(failure({ end: "timeout", ms: 60_000, reasoningChars: 8031 })?.detail).toBe(
-      "no complete reply after 60 s (only hidden reasoning had arrived, 8031 characters)",
+      "no complete reply after 60 s, only hidden reasoning had arrived, 8031 characters",
     );
   });
 

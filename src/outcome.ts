@@ -51,14 +51,14 @@ export function transportFailure(evidence: Evidence): Failure | null {
   const code = refusal?.code ?? null;
   const effective = isSuccess ? (/^[45]\d\d$/u.test(code ?? "") ? Number(code) : null) : status;
   const label = isSuccess ? `error inside the reply${code === null ? "" : ` (${code})`}` : `HTTP ${status}`;
-  const wait = evidence.retryAfter === null ? "" : ` (retry after ${evidence.retryAfter})`;
+  const wait = evidence.retryAfter === null ? "" : `, retry after ${evidence.retryAfter}`;
   const note = refusal?.note ? `: ${refusal.note}` : "";
   return { reason: refusalReason(effective, code ?? "", refusal?.note ?? ""), detail: `${label}${note}${wait}` };
 }
 
 function soFar({ text, reasoningChars }: Evidence): string {
-  if (text !== "") return ` (${text.length} characters had arrived)`;
-  return reasoningChars > 0 ? ` (only hidden reasoning had arrived, ${reasoningChars} characters)` : "";
+  if (text !== "") return `, ${text.length} characters had arrived`;
+  return reasoningChars > 0 ? `, only hidden reasoning had arrived, ${reasoningChars} characters` : "";
 }
 
 function refusalReason(status: number | null, code: string, note: string): NoAnswer {

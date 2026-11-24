@@ -28,7 +28,7 @@ export function summaryMarkdown(run: Run): string {
     ...(panel.isOverCap ? ["", "**Spending went over the cap.** A provider charged more than the worst case."] : []),
     ...(plan.diff?.problem ? ["", `**The diff could not be read all the way:** ${tableCell(plan.diff.problem)}`] : []),
     "",
-    ...table(["", ""], facts(run)),
+    ...facts(run),
     ...section("Reviewers", ["Reviewer", "Lab", "Result", "Time", "Cost"], panel.results.map(reviewerRow)),
     ...(isQuestion
       ? section("Recommendations", ["Reviewer", "Recommendation"], recommendationRows(panel))
@@ -74,11 +74,11 @@ function headline(panel: Panel): string[] {
   return [title, "", `**This panel is not complete.** ${reasons.join(" ")} A missing answer is not agreement.`];
 }
 
-function facts({ source, startedAt, maxUsd, plan, panel }: Run): string[][] {
+function facts({ source, startedAt, maxUsd, plan, panel }: Run): string[] {
   const { areas, risk, reasons } = plan.classification;
   const labs = [...plan.authors.labs];
   const size = plan.diff ? `, ${sizeOf(plan)}` : "";
-  return [
+  return list([
     ["Reviewed", `${source}${size}`],
     ["Written by", `${plan.authors.names.join(", ")}, so ${labs.length > 0 ? labs.join(" and ") : "no lab"} sits out`],
     ["Touches", areas.join(", ")],
@@ -86,7 +86,7 @@ function facts({ source, startedAt, maxUsd, plan, panel }: Run): string[][] {
     ["Why", reasons.join("; ")],
     ["Cost", `${dollars(panel.spent)} of ${dollars(Math.round(maxUsd * 1_000_000))}`],
     ["Run", `${startedAt.toISOString().slice(0, 16).replace("T", " ")} UTC, sign-off code ${signOffCode(plan.codes)}`],
-  ];
+  ]);
 }
 
 export function sizeOf(plan: Plan): string {
@@ -102,7 +102,7 @@ function reviewerRow(result: SeatResult): Cell[] {
     reviewer.lab,
     outcome.answered
       ? describe(outcome)
-      : { markdown: `**did not answer**: ${tableCell(`${outcome.reason} (${outcome.detail})`)}` },
+      : { markdown: `**did not answer**, ${tableCell(`${outcome.reason}: ${outcome.detail}`)}` },
     secondsOf(result),
     costOf(result),
   ];
@@ -181,7 +181,7 @@ export function reviewerMarkdown(result: SeatResult): string {
   const { reviewer, outcome, evidence } = result;
   const text = evidence?.text ?? "";
   const usage = evidence?.usage;
-  const rows = [
+  const rows: [string, string][] = [
     ["Model", `${reviewer.model} (${reviewer.lab})`],
     ["Provider", reviewer.provider],
     ["Time", secondsOf(result)],
@@ -192,7 +192,7 @@ export function reviewerMarkdown(result: SeatResult): string {
   return [
     `# ${reviewer.id}: ${describe(outcome)}`,
     "",
-    ...table(["", ""], rows),
+    ...list(rows),
     "",
     ...(outcome.answered
       ? ["## Answer", ""]
@@ -231,6 +231,10 @@ function table(head: string[], rows: Cell[][]): string[] {
   const line = (cells: string[]) => `| ${cells.join(" | ")} |`;
   const render = (cell: Cell) => (typeof cell === "string" ? tableCell(cell) : cell.markdown);
   return [line(head), line(head.map(() => "---")), ...rows.map((row) => line(row.map(render)))];
+}
+
+function list(rows: [string, string][]): string[] {
+  return rows.map(([label, text]) => `- **${label}:** ${tableCell(text)}`);
 }
 
 function section(title: string, head: string[], rows: Cell[][]): string[] {

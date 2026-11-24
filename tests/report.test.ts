@@ -189,7 +189,7 @@ describe("summaryMarkdown", () => {
 
   test("shows the risk with its reasons, and the cost against the cap", () => {
     const text = summaryMarkdown(complete);
-    expect(text).toContain("medium");
+    expect(text).toContain("- **Risk:** medium");
     expect(text).toContain("src/pay.ts touches payments (pay)");
     expect(text).toContain("$0.012345 of $0.50");
   });
