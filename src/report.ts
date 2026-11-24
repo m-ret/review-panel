@@ -1,4 +1,4 @@
-import type { Severity } from "./answer.ts";
+import type { Finding, Severity } from "./answer.ts";
 import { dollars } from "./budget.ts";
 import type { Outcome } from "./outcome.ts";
 import type { Panel, Plan, SeatResult } from "./panel.ts";
@@ -98,7 +98,7 @@ export function sizeOf(plan: Plan): string {
 function reviewerRow(result: SeatResult): Cell[] {
   const { reviewer, outcome } = result;
   return [
-    { markdown: `[${reviewer.id}](${reviewer.id}.md)` },
+    fileOf(reviewer.id),
     reviewer.lab,
     outcome.answered
       ? describe(outcome)
@@ -108,15 +108,26 @@ function reviewerRow(result: SeatResult): Cell[] {
   ];
 }
 
-function findingRows(panel: Panel): string[][] {
+/** Worst first, then by file and line, so that one problem found by two reviewers sits together. */
+function findingRows(panel: Panel): Cell[][] {
   const all = panel.results.flatMap(({ reviewer, outcome }) =>
-    outcome.answered ? outcome.findings.map((finding) => ({ ...finding, reviewer: reviewer.id })) : [],
+    outcome.answered ? outcome.findings.map((finding) => ({ ...finding, id: reviewer.id })) : [],
   );
-  return WORST_FIRST.flatMap((severity) =>
-    all
-      .filter((finding) => finding.severity === severity)
-      .map(({ where, what, reviewer }) => [severity, where, what, reviewer]),
-  );
+  const rank = ({ severity }: Finding) => WORST_FIRST.indexOf(severity);
+  return all
+    .toSorted((a, b) => rank(a) - rank(b) || comparePlaces(a.where, b.where))
+    .map(({ severity, where, what, id }) => [severity, where, what, fileOf(id)]);
+}
+
+function comparePlaces(a: string, b: string): number {
+  const [pathA = "", lineA = "0"] = a.split(":");
+  const [pathB = "", lineB = "0"] = b.split(":");
+  if (pathA !== pathB) return pathA < pathB ? -1 : 1;
+  return (Number.parseInt(lineA, 10) || 0) - (Number.parseInt(lineB, 10) || 0);
+}
+
+function fileOf(id: string): Cell {
+  return { markdown: `[${id}](${id}.md)` };
 }
 
 /** A reviewer that found nothing should at least say what it looked at. A person can tell a hollow answer. */
@@ -213,7 +224,7 @@ function secondsOf({ evidence }: SeatResult): string {
 }
 
 function costOf({ cost, isWorstCase }: SeatResult): string {
-  return `${isWorstCase ? "at most " : ""}${dollars(cost)}`;
+  return `${isWorstCase && cost > 0 ? "at most " : ""}${dollars(cost)}`;
 }
 
 export function countAnswered(panel: Panel): number {

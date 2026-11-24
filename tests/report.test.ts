@@ -152,6 +152,23 @@ describe("summaryMarkdown", () => {
     expect(order[0]).toBeGreaterThan(0);
   });
 
+  test("findings of one severity are in order of file and line, so the same problem found twice sits together", () => {
+    const text = summaryMarkdown(
+      run([
+        seat("a", found(["major", "b.ts:9", "a9"], ["major", "b.ts:100-120", "a100"], ["major", "a.ts", "no line"])),
+        seat("b", found(["major", "b.ts:9", "b9"], ["major", "b.ts:12", "b12"])),
+      ]),
+    );
+    const order = ["no line", "a9", "b9", "b12", "a100"].map((what) => text.indexOf(`| ${what} |`));
+    expect(order.every((at) => at > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((x, y) => x - y));
+  });
+
+  test("a finding leads to the file that has its whole text", () => {
+    const text = summaryMarkdown(run([seat("a", found(["major", "b.ts:9", "x".repeat(2000)])), seat("b", clean)]));
+    expect(text).toMatch(/^\| major \| b\.ts:9 \| x+… \| \[a\]\(a\.md\) \|$/mu);
+  });
+
   test("text from a model stays text: no table rows, images or HTML of its own", () => {
     const text = summaryMarkdown(
       run([seat("a", found(["major", "x|y.ts:1", "a | b\n| c | ![p](http://e/p.png) <img src=x>"])), seat("b", clean)]),
@@ -215,6 +232,11 @@ describe("summaryMarkdown", () => {
   test("a cost that is only the worst case is marked", () => {
     const text = summaryMarkdown(run([seat("a", clean, { isWorstCase: true }), seat("b", clean)]));
     expect(text).toMatch(/\[a\]\(a\.md\).*at most \$0\.004/u);
+  });
+
+  test("a worst case of nothing is just nothing", () => {
+    const text = summaryMarkdown(run([seat("a", clean, { cost: 0, isWorstCase: true }), seat("b", clean)]));
+    expect(text).toMatch(/\[a\]\(a\.md\).*\| \$0 \|/u);
   });
 
   test("a diff that could not be read all the way is said out loud", () => {

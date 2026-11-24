@@ -64,7 +64,7 @@ export function fenced(text: string): string {
   return `${fence}text\n${text}\n${fence}`;
 }
 
-/** The text as one inert Markdown table cell. */
+/** The text as one inert Markdown table cell, cut if it is very long. */
 export function tableCell(text: string): string {
-  return oneLine(text, 300).replace(/[\\`*_~|<>[\]]/gu, "\\$&");
+  return oneLine(text, 600).replace(/[\\`*_~|<>[\]]/gu, "\\$&");
 }
