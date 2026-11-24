@@ -4,6 +4,7 @@ This page explains every part in plain words. File names point to the code in `s
 
 - [The idea](#the-idea)
 - [One run, from start to end](#one-run-from-start-to-end)
+- [Map of the code](#map-of-the-code)
 - [Rules that never bend](#rules-that-never-bend)
 - [Why it is built this way](#why-it-is-built-this-way)
 - [What was measured](#what-was-measured)
@@ -121,6 +122,30 @@ The summary opens with what is missing. If it opened with the findings, a missin
 ### 11. A person decides
 
 The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in. In the JSON file, `decision` is always `null`.
+
+## Map of the code
+
+| File | Its job |
+| --- | --- |
+| `cli.ts` | reads the options, runs the steps, sets the exit code |
+| `input.ts` | gets the diff or the question |
+| `config.ts` | checks the config file and reads the keys |
+| `author.ts` | finds the lab that must sit out |
+| `secrets.ts` | finds what must not be sent |
+| `diff.ts` | which files changed, and by how much |
+| `classify.ts` | what the change touches, and how risky it is |
+| `prompt.ts` | the packet and its codes |
+| `panel.ts` | the order of the steps |
+| `check.ts` | one word from each candidate |
+| `seats.ts` | who sits, and why the others do not |
+| `budget.ts` | the money |
+| `ask.ts` | one call, with its money settled whatever happens |
+| `call.ts` | one HTTP request, reported as it happened |
+| `sse.ts`, `reply.ts` | the stream, put back together |
+| `outcome.ts` | did it answer, and if not, why |
+| `answer.ts` | the sign-off line and the findings |
+| `report.ts` | the files |
+| `text.ts` | cleaning text from outside |
 
 ## Rules that never bend
 
