@@ -1,0 +1,86 @@
+{
+  "limits": {
+    "timeoutSeconds": 300,
+    "checkTimeoutSeconds": 60,
+    "maxOutputTokens": 16000,
+    "maxUsd": 0.5
+  },
+  "providers": {
+    "nvidia": {
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "apiKeyEnv": "NVIDIA_API_KEY"
+    }
+  },
+  "reviewers": [
+    {
+      "id": "mistral",
+      "lab": "mistral",
+      "provider": "nvidia",
+      "model": "mistralai/mistral-large-4-1t-a52b",
+      "goodAt": ["security", "payments", "code"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "kimi",
+      "lab": "moonshot",
+      "provider": "nvidia",
+      "model": "moonshotai/kimi-k3.1-pro",
+      "goodAt": ["payments", "infra", "code"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "nemotron",
+      "lab": "nvidia",
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "goodAt": ["data", "design", "code"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "step",
+      "lab": "stepfun",
+      "provider": "nvidia",
+      "model": "stepfun-ai/step-5-preview",
+      "goodAt": ["data", "code"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "glm",
+      "lab": "zai",
+      "provider": "nvidia",
+      "model": "z-ai/glm-5.3-flash",
+      "goodAt": ["design", "frontend"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "minimax",
+      "lab": "minimax",
+      "provider": "nvidia",
+      "model": "minimaxai/minimax-m3.1-flash",
+      "goodAt": ["frontend", "docs"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "laguna",
+      "lab": "poolside",
+      "provider": "nvidia",
+      "model": "poolside/laguna-xs-2.1",
+      "goodAt": ["tests"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    },
+    {
+      "id": "gemma",
+      "lab": "google",
+      "provider": "nvidia",
+      "model": "google/gemma-3-12b-it",
+      "goodAt": ["docs"],
+      "usdPerMillionTokens": { "input": 0, "output": 0 }
+    }
+  ],
+  "authors": {
+    "claude": "anthropic",
+    "codex": "openai",
+    "gpt": "openai",
+    "gemini": "google"
+  }
+}
