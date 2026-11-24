@@ -268,6 +268,8 @@ describe("runPanel", () => {
     );
     expect(panel.bench).toMatchObject([{ reason: "check-failed", detail: expect.stringContaining("internal-error") }, {}]);
     expect(budget.left()).toBe(1_000_000 - budget.spent());
+    // Four checks of 22, two reviews of 1200. The refused review and the check that was never sent cost nothing.
+    expect(budget.spent()).toBe(4 * 22 + 2 * 1200);
   });
 
   test("a bug of ours in one check leaves that reviewer out, and the panel goes on", async () => {

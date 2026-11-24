@@ -76,9 +76,11 @@ describe("judge: what does not", () => {
   });
 
   test("no text because the whole limit went on hidden reasoning, and the detail says so", () => {
-    const outcome = diff({ text: "", reasoningChars: 9000, finishReason: "length" });
-    expect(outcome).toMatchObject({ answered: false, reason: "empty" });
-    expect(JSON.stringify(outcome)).toContain("9000");
+    expect(diff({ text: "", reasoningChars: 9000, finishReason: "length" })).toEqual({
+      answered: false,
+      reason: "empty",
+      detail: "only hidden reasoning arrived, 9000 characters; raise maxOutputTokens",
+    });
   });
 
   test("cut at the token limit, even if the part that arrived is signed", () => {

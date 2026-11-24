@@ -86,7 +86,7 @@ export function judge(evidence: Evidence, kind: Kind, code: string): Outcome {
   if (finishReason === "content_filter") return no("filtered", "held back by the provider's content filter");
   if (text.trim() === "") {
     return evidence.reasoningChars > 0
-      ? no("empty", `only hidden reasoning arrived (${evidence.reasoningChars} characters); raise maxOutputTokens`)
+      ? no("empty", `only hidden reasoning arrived, ${evidence.reasoningChars} characters; raise maxOutputTokens`)
       : no("empty", "the provider sent no text");
   }
   if (CUT.includes(finishReason ?? "")) return no("truncated", "stopped at the token limit");
