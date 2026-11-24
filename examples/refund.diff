@@ -8,37 +8,37 @@ index 0000000..4b1f0d2
 +import { gateway } from "./gateway.ts";
 +
 +export type RefundRequest = {
-+  bookingId: string;
++  orderId: string;
 +  amount: number; // dollars
 +  reason?: string;
 +};
 +
-+/** Refunds part or all of a booking. Called by the admin page and by the gateway webhook. */
-+export async function refundBooking(request: RefundRequest): Promise<{ ok: boolean }> {
-+  const booking = await db.booking.findUnique({ where: { id: request.bookingId } });
-+  if (!booking) return { ok: false };
++/** Refunds part or all of an order. Called by the admin page and by the gateway webhook. */
++export async function refundOrder(request: RefundRequest): Promise<{ ok: boolean }> {
++  const order = await db.order.findUnique({ where: { id: request.orderId } });
++  if (!order) return { ok: false };
 +
-+  const alreadyRefunded = booking.refundedCents / 100;
-+  if (request.amount > booking.paidCents / 100 - alreadyRefunded) {
++  const alreadyRefunded = order.refundedCents / 100;
++  if (request.amount > order.paidCents / 100 - alreadyRefunded) {
 +    return { ok: false };
 +  }
 +
 +  try {
 +    await gateway.refund({
-+      chargeId: booking.chargeId,
++      chargeId: order.chargeId,
 +      amountCents: request.amount * 100,
 +    });
 +  } catch (error) {
 +    console.error("refund failed", error);
 +  }
 +
-+  await db.booking.update({
-+    where: { id: booking.id },
-+    data: { refundedCents: booking.refundedCents + request.amount * 100 },
++  await db.order.update({
++    where: { id: order.id },
++    data: { refundedCents: order.refundedCents + request.amount * 100 },
 +  });
 +
 +  await db.auditLog.create({
-+    data: { bookingId: booking.id, action: "refund", note: request.reason ?? "" },
++    data: { orderId: order.id, action: "refund", note: request.reason ?? "" },
 +  });
 +  return { ok: true };
 +}

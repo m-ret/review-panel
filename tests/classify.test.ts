@@ -115,7 +115,7 @@ describe("classifyDiff: risk", () => {
       "await db.execute('DROP TABLE users')",
       "alter table users drop column email",
       "truncate table events",
-      'DELETE FROM "bookings";',
+      'DELETE FROM "orders";',
       "rm -rf $TARGET",
       "git push --force origin main",
     ]) {
@@ -124,7 +124,7 @@ describe("classifyDiff: risk", () => {
   });
 
   test("words that only look destructive are not", () => {
-    for (const addedText of ['<p className="truncate text-sm">', "DELETE FROM bookings WHERE id = $1;", "a drop of water"]) {
+    for (const addedText of ['<p className="truncate text-sm">', "DELETE FROM orders WHERE id = $1;", "a drop of water"]) {
       expect(risk({ path: "src/parse.ts", added: 1, removed: 0, addedText })).toBe("low");
     }
   });
