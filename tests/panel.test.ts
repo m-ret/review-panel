@@ -13,7 +13,7 @@ import {
   stream,
 } from "../demo/fake-provider.ts";
 import { type Budget, createBudget } from "../src/budget.ts";
-import { parseConfig } from "../src/config.ts";
+import { type Config, parseConfig } from "../src/config.ts";
 import { planPanel, runPanel, type SeatResult } from "../src/panel.ts";
 
 const open: FakeProvider[] = [];
@@ -44,6 +44,7 @@ async function run(
     limits?: object;
     onResult?: (result: SeatResult) => void;
     budget?: (budget: Budget) => Budget;
+    spoil?: (config: Config) => void;
   } = {},
 ) {
   const entries = Object.entries(members).map(([id, member]): [string, Member] => [
@@ -65,6 +66,7 @@ async function run(
       })),
     }),
   );
+  over.spoil?.(config);
   const plan = planPanel({
     kind: "diff",
     material: over.material ?? MEDIUM,
@@ -79,7 +81,7 @@ async function run(
   );
   const asked = (id: string) => provider.requests.filter((request) => request.model === id && !request.isCheck).length;
   const result = (id: string) => panel.results.find((one) => one.reviewer.id === id);
-  return { panel, provider, asked, result };
+  return { panel, provider, asked, result, budget };
 }
 
 describe("runPanel", () => {
@@ -250,6 +252,22 @@ describe("runPanel", () => {
     expect(result("b")?.isWorstCase).toBe(true);
     expect(result("a")?.outcome.answered).toBe(true);
     expect(panel.state).toBe("incomplete");
+  });
+
+  test("when a run ends, no money is still set aside, whatever happened in it", async () => {
+    const price = { input: 1, output: 1 };
+    const paid = (behaviour: Behaviour) => ({ behaviour, price });
+    const { panel, budget } = await run(
+      { a: paid(reviews()), b: paid(afterCheck(refuses(500, "down"))), c: paid(reviews()), d: paid(reviews()), e: paid(reviews()) },
+      {
+        limits: { maxUsd: 1 },
+        spoil: (config) => {
+          config.reviewers[3]!.provider = "gone"; // our own mistake: its check cannot even be sent
+        },
+      },
+    );
+    expect(panel.bench).toMatchObject([{ reason: "check-failed", detail: expect.stringContaining("internal-error") }, {}]);
+    expect(budget.left()).toBe(1_000_000 - budget.spent());
   });
 
   test("a bug of ours in one check leaves that reviewer out, and the panel goes on", async () => {

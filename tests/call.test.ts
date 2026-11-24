@@ -159,6 +159,14 @@ describe("callModel: when it goes wrong", () => {
     expect(JSON.stringify(evidence)).not.toContain(KEY);
   });
 
+  test("a key that a gateway repeats inside an answer does not get through either", async () => {
+    const { evidence } = await call(() =>
+      stream([frame("m", { content: `you sent Bearer ${KEY.slice(0, 5)}` }), frame("m", { content: KEY.slice(5) }, KEY), sse("[DONE]")]),
+    );
+    expect(evidence.text).toBe("you sent Bearer [key]");
+    expect(JSON.stringify(evidence)).not.toContain(KEY);
+  });
+
   test("an error inside a good stream is a refusal, and its words are cleaned too", async () => {
     const { evidence } = await call(() =>
       stream([frame("m", { content: "par" }), sse({ error: { code: 429, message: `limit for ${KEY}` } }), sse("[DONE]")]),

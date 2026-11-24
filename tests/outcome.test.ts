@@ -45,7 +45,7 @@ describe("judge: what counts as an answer", () => {
 
   test("'none' and '2 findings' are numbers people write", () => {
     expect(diff({ text: "Checked a.ts.\nSIGN-OFF 7f3a-91bc | none" })).toMatchObject({ answered: true });
-    expect(diff({ text: SIGNED.replace("| 1", "| 1 finding") })).toMatchObject({ answered: true });
+    expect(diff({ text: SIGNED.replace("| 1", "| 1 finding.") })).toMatchObject({ answered: true });
   });
 
   test("an answer to a question counts with its recommendation", () => {
@@ -113,6 +113,8 @@ describe("judge: what does not", () => {
     expect(reasonOf({ text: SIGNED.replace("| 1", "| 3") })).toBe("inconsistent");
     expect(reasonOf({ text: "ok\nSIGN-OFF 7f3a-91bc | looks good" })).toBe("inconsistent");
     expect(reasonOf({ text: "ok\nSIGN-OFF 7f3a-91bc | 0.5" })).toBe("inconsistent");
+    expect(reasonOf({ text: "ok\nSIGN-OFF 7f3a-91bc | 0, approved, ship it" })).toBe("inconsistent");
+    expect(reasonOf({ text: "ok\nSIGN-OFF 7f3a-91bc | none of this is safe" })).toBe("inconsistent");
   });
 
   test("the transport is judged first: a signed text on a refused request is not an answer", () => {

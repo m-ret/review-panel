@@ -1,6 +1,6 @@
 import { createReply, type Usage } from "./reply.ts";
 import { createSseReader } from "./sse.ts";
-import { oneLine, providerNote, stripControls } from "./text.ts";
+import { providerNote, stripControls, withoutKeys } from "./text.ts";
 
 /** What happened on the wire, cleaned and without any judgement. `outcome.ts` judges it. */
 export type Evidence = {
@@ -94,20 +94,19 @@ export async function callModel(
     if (end === "network") refusal = { code: codeOf(error), body: codeOf(error) };
   }
 
-  const { text, error, finishReason, ...rest } = reply.result();
+  // Everything below came from outside, so it is cleaned here, once, at the door.
+  const note = (words: string | null) => words && providerNote(words, options.secrets);
+  const { text, error, finishReason, ...counts } = reply.result();
   if (error) refusal ??= { code: error.code, body: error.message };
   return {
-    ...rest,
+    ...counts,
     ms: Math.round(performance.now() - started),
     status,
     end,
-    refusal: refusal && {
-      code: refusal.code && providerNote(refusal.code, options.secrets),
-      note: providerNote(refusal.body, options.secrets),
-    },
-    retryAfter: retryAfter && oneLine(retryAfter, 40),
-    text: stripControls(text),
-    finishReason: finishReason && oneLine(finishReason, 40),
+    refusal: refusal && { code: note(refusal.code), note: note(refusal.body) ?? "" },
+    retryAfter: note(retryAfter),
+    text: withoutKeys(stripControls(text), options.secrets),
+    finishReason: note(finishReason),
   };
 }
 

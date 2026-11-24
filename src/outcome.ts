@@ -105,8 +105,9 @@ export function judge(evidence: Evidence, kind: Kind, code: string): Outcome {
   return { answered: true, findings, recommendation: null };
 }
 
+/** The number of findings, and nothing else: "2", "2 findings", "none". */
 function countIn(signOff: string): number | null {
-  if (/^(?:none|no findings?)\b/iu.test(signOff)) return 0;
-  const digits = /^(\d+)(?![\d.,]*\d)/u.exec(signOff)?.[1];
+  if (/^(?:none|no findings?)\.?$/iu.test(signOff)) return 0;
+  const digits = /^(\d+)(?:\s+findings?)?\.?$/iu.exec(signOff)?.[1];
   return digits === undefined ? null : Number(digits);
 }

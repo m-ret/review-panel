@@ -4,16 +4,20 @@ import type { Usage } from "./reply.ts";
 // Money is kept in whole millionths of a dollar. A price of 2 dollars per
 // million tokens is 2 of them per token, so no rounding error can build up.
 
-/** A low guess at bytes per token, so that the guess at tokens is on the high side. */
-const BYTES_PER_TOKEN = 3;
+/** Providers wrap a prompt in a template of their own. The largest seen added about 160 tokens. */
+const TEMPLATE_TOKENS = 500;
 
 export function costOf(usage: Usage, price: Price): number {
   return Math.ceil(usage.inputTokens * price.input + usage.outputTokens * price.output);
 }
 
-/** The most a call should cost: the whole prompt, plus an answer that uses all of its limit. */
+/**
+ * The most a call can cost: the whole prompt, plus an answer that uses all of
+ * its limit. A token is at least one byte, so counting one for every byte is
+ * too high on purpose. A guess that can be too low would not be a cap.
+ */
 export function worstCase(promptBytes: number, maxOutputTokens: number, price: Price): number {
-  return costOf({ inputTokens: Math.ceil(promptBytes / BYTES_PER_TOKEN), outputTokens: maxOutputTokens }, price);
+  return costOf({ inputTokens: promptBytes + TEMPLATE_TOKENS, outputTokens: maxOutputTokens }, price);
 }
 
 export type Budget = {

@@ -11,25 +11,30 @@ export type Context = {
   secrets: readonly string[];
 };
 
-/** Asks one reviewer and settles what was reserved under `reservation`. */
+/** Asks one reviewer and settles what was reserved under `reservation`, whatever happens. */
 export async function ask(
   reviewer: Reviewer,
   prompt: string,
   options: { reservation: string; maxOutputTokens: number; timeoutSeconds: number },
   { config, keys, budget, secrets }: Context,
 ): Promise<{ evidence: Evidence; charge: number | null }> {
-  const provider = config.providers[reviewer.provider];
-  const key = keys[reviewer.provider];
-  if (!provider || !key || key.state === "missing") throw new Error(`${reviewer.id} cannot be called without its key`);
+  let charge: number | null = 0;
+  try {
+    const provider = config.providers[reviewer.provider];
+    const key = keys[reviewer.provider];
+    if (!provider || !key || key.state === "missing") throw new Error(`${reviewer.id} cannot be called without its key`);
 
-  const evidence = await callModel(
-    { ...provider, key: key.state === "present" ? key.key : null, model: reviewer.model },
-    prompt,
-    { maxOutputTokens: options.maxOutputTokens, timeoutMs: options.timeoutSeconds * 1000, secrets },
-  );
-  const charge = chargeOf(evidence, reviewer);
-  budget.settle(options.reservation, charge);
-  return { evidence, charge };
+    charge = null; // from here on it may cost something
+    const evidence = await callModel(
+      { ...provider, key: key.state === "present" ? key.key : null, model: reviewer.model },
+      prompt,
+      { maxOutputTokens: options.maxOutputTokens, timeoutMs: options.timeoutSeconds * 1000, secrets },
+    );
+    charge = chargeOf(evidence, reviewer);
+    return { evidence, charge };
+  } finally {
+    budget.settle(options.reservation, charge);
+  }
 }
 
 /** What a call cost, or null when nobody said. A refused request is not charged. */

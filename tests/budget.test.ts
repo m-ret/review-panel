@@ -16,8 +16,15 @@ describe("the price of a call", () => {
     expect(costOf({ inputTokens: 5000, outputTokens: 5000 }, { input: 0, output: 0 })).toBe(0);
   });
 
-  test("the worst case counts one token for every three bytes sent and the whole answer limit", () => {
-    expect(worstCase(3001, 500, price)).toBe(1001 * 2 + 500 * 10);
+  test("the worst case counts a token for every byte sent, some for the provider's template, and the whole answer limit", () => {
+    // A token is at least one byte, so no text can have more tokens than bytes.
+    expect(worstCase(3000, 500, price)).toBe((3000 + 500) * 2 + 500 * 10);
+  });
+
+  test("the worst case is not exceeded by text with a token in every byte, nor by a provider that adds to a short prompt", () => {
+    expect(worstCase(3000, 0, price)).toBeGreaterThanOrEqual(costOf({ inputTokens: 3000, outputTokens: 0 }, price));
+    // Measured: a 26-byte prompt came back as 184 tokens.
+    expect(worstCase(26, 0, price)).toBeGreaterThanOrEqual(costOf({ inputTokens: 184, outputTokens: 0 }, price));
   });
 });
 

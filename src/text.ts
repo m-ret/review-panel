@@ -21,15 +21,16 @@ export function oneLine(text: string, max = 200): string {
  * Error bodies often quote the caller's key, account id or email, so those go.
  */
 export function providerNote(body: string, secrets: readonly string[]): string {
-  let note = errorMessage(body);
-  for (const secret of secrets) {
-    if (secret !== "") note = note.replaceAll(secret, "[key]");
-  }
-  note = note
+  const note = withoutKeys(errorMessage(body), secrets)
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu, "[email]")
     .replace(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/giu, "[id]")
     .replace(/[A-Za-z0-9_-]{20,}/gu, (run) => (looksLikeId(run) ? "[id]" : run));
   return oneLine(note);
+}
+
+/** Keys never get through, even from a gateway that repeats the request it was sent. */
+export function withoutKeys(text: string, secrets: readonly string[]): string {
+  return secrets.reduce((clean, secret) => (secret === "" ? clean : clean.replaceAll(secret, "[key]")), text);
 }
 
 /** Mixed upper case, lower case and digits in one long run: an id or a key, not a word. */
