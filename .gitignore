@@ -1,6 +1,4 @@
 node_modules/
-.review-panel/
-panel.json
 .env
 .env.*
 *.log

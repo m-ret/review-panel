@@ -100,7 +100,7 @@ review-panel --author human --question plan.md
 
 Any OpenAI-compatible endpoint works as a provider. The example config needs one free key. Keys are read from environment variables only, and a key that is written in the config is refused.
 
-The config lives in your home folder, not in the repository. It says where your key and your code go, so a branch under review must not be able to bring its own. For the same reason git runs with its guard up: nothing in the folder under review can start a command.
+The config lives in your home folder, not in the repository. It says where your key and your code go, so a branch under review must not be able to bring its own. For the same reason git runs with its guard up, and the `.env` and `bunfig.toml` of that folder are not read.
 
 | Exit code | Meaning |
 | --- | --- |
