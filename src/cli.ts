@@ -6,9 +6,10 @@ import { parseArgs } from "node:util";
 import type { Context } from "./ask.ts";
 import { resolveAuthors } from "./author.ts";
 import { createBudget, dollars } from "./budget.ts";
+import { worstCaseOfCheck } from "./check.ts";
 import { ConfigError, parseConfig, readKeys, type Config } from "./config.ts";
 import { InputError, readInput, type Input } from "./input.ts";
-import { planPanel, runPanel, worstCaseOf, type Panel, type Plan } from "./panel.ts";
+import { candidatesFor, planPanel, runPanel, worstCaseOf, type Panel, type Plan } from "./panel.ts";
 import { makeResultsFolder, readConfigFile, writeNew } from "./places.ts";
 import { countAnswered, plural, reviewerMarkdown, sizeOf, summaryJson, summaryMarkdown } from "./report.ts";
 import { chooseSeats, FEWEST_SEATS } from "./seats.ts";
@@ -175,21 +176,22 @@ function refuseUnsendable(input: Input, plan: Plan, config: Config, secrets: rea
   }
 }
 
+/** The same choice a run makes, as if every check passed. */
 function describePlan(plan: Plan, config: Config, promptFile: string): string {
   const budget = createBudget(config.limits.maxUsd);
-  const worst = (reviewer: Config["reviewers"][number]) => worstCaseOf(reviewer, plan, config.limits.maxOutputTokens);
+  const cap = budget.left();
+  for (const reviewer of candidatesFor(plan, config, cap)) budget.reserve(`check ${reviewer.id}`, worstCaseOfCheck(reviewer));
   const { wanted, seats, bench } = chooseSeats({
     reviewers: config.reviewers,
     authorLabs: plan.authors.labs,
     areas: plan.classification.areas,
     risk: plan.classification.risk,
     failedChecks: new Map(),
-    reserve: (reviewer) => budget.reserve(reviewer.id, worst(reviewer)),
+    reserve: (reviewer) => budget.reserve(reviewer.id, worstCaseOf(reviewer, plan, config.limits.maxOutputTokens)),
   });
-  const total = seats.reduce((sum, seat) => sum + worst(seat), 0);
   return [
     `Risk ${plan.classification.risk}: ${wanted} reviewers. Touches ${plan.classification.areas.join(", ")}.`,
-    `If every check passes: ${seats.map((seat) => seat.id).join(", ")}. Worst case ${dollars(total)} of ${dollars(Math.round(config.limits.maxUsd * 1_000_000))}.`,
+    `If every check passes: ${seats.map((seat) => seat.id).join(", ")}. Worst case ${dollars(cap - budget.left())} of ${dollars(cap)}.`,
     ...bench.map(({ reviewer, reason, detail }) => `  not ${reviewer.id}: ${reason} (${detail})`),
     `What would be sent: ${promptFile}`,
     "Nothing was sent.",

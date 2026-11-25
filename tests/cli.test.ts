@@ -551,8 +551,27 @@ describe("--dry-run", () => {
       },
     );
     const { out } = await cli(folder, [...RANGE, "--author", "claude", "--dry-run"]);
-    expect(out).toContain("If every check passes: a, c, d. Worst case $0.035 of $0.05.");
+    // Seats: 10,000 + 20,000 + 5,000. Checks of 16 tokens: 160 + 320 + 80. b could never fit, so it is not checked.
+    expect(out).toContain("If every check passes: a, c, d. Worst case $0.03556 of $0.05.");
     expect(out).toContain("not b: over-budget");
+  });
+
+  test("leaves room for the checks, as a run does", async () => {
+    const member = (id: string) => ({
+      id,
+      lab: `lab-${id}`,
+      provider: "main",
+      model: id,
+      usdPerMillionTokens: { input: 0, output: 10 },
+    });
+    const limits = { maxOutputTokens: 1000, timeoutSeconds: 2, checkTimeoutSeconds: 2 };
+    const reviewers = ["a", "b", "c"].map(member);
+    // Three seats of 10,000 fit under 30,000, but not together with three checks of 160.
+    const { folder } = project(three(), { limits: { ...limits, maxUsd: 0.03 }, reviewers });
+    const dry = await cli(folder, [...RANGE, "--author", "claude", "--dry-run"]);
+    const real = await cli(folder, [...RANGE, "--author", "claude"]);
+    expect(dry.out).toContain("If every check passes: a, b.");
+    expect(real.err).toContain("asking 2 of 3: a, b");
   });
 });
 

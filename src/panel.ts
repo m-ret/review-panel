@@ -4,7 +4,7 @@ import { worstCase } from "./budget.ts";
 import type { Evidence } from "./call.ts";
 import { checkReviewer } from "./check.ts";
 import { classifyDiff, classifyQuestion, raiseRisk, type Classification } from "./classify.ts";
-import type { Reviewer } from "./config.ts";
+import type { Config, Reviewer } from "./config.ts";
 import { parseDiff, type ParsedDiff } from "./diff.ts";
 import { internalError, judge, type Failure, type Outcome } from "./outcome.ts";
 import { buildPrompt, makeCodes, signOffCode, type Codes } from "./prompt.ts";
@@ -64,6 +64,16 @@ export function worstCaseOf(reviewer: Reviewer, plan: Plan, maxOutputTokens: num
   return worstCase(Buffer.byteLength(plan.prompt), maxOutputTokens, reviewer.usdPerMillionTokens);
 }
 
+/**
+ * Who is checked. Not the author's lab, and not a reviewer that could never fit
+ * under the cap: the money set aside for its check could keep another one out.
+ */
+export function candidatesFor(plan: Plan, { reviewers, limits }: Config, cap: number): Reviewer[] {
+  return reviewers.filter(
+    (reviewer) => !plan.authors.labs.has(reviewer.lab) && worstCaseOf(reviewer, plan, limits.maxOutputTokens) <= cap,
+  );
+}
+
 export async function runPanel(
   plan: Plan,
   context: Context,
@@ -76,12 +86,8 @@ export async function runPanel(
   const { config, budget } = context;
   const { maxOutputTokens } = config.limits;
 
-  const cap = budget.left();
   const worst = (reviewer: Reviewer) => worstCaseOf(reviewer, plan, maxOutputTokens);
-  // A reviewer that could never fit is not checked: the money set aside for its check could keep another out.
-  const candidates = config.reviewers.filter(
-    (reviewer) => !plan.authors.labs.has(reviewer.lab) && worst(reviewer) <= cap,
-  );
+  const candidates = candidatesFor(plan, config, budget.left());
   const checks = await Promise.all(
     candidates.map(async (reviewer) => ({ reviewer, check: await checkReviewer(reviewer, context) })),
   );

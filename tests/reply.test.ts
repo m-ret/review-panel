@@ -96,6 +96,11 @@ describe("createReply", () => {
     }
   });
 
+  test("a choice that is not a choice is counted", () => {
+    expect(collect(JSON.stringify({ choices: [null] }))).toMatchObject({ frames: 0, badFrames: 1 });
+    expect(collect(JSON.stringify({ choices: ["text"] }))).toMatchObject({ frames: 0, badFrames: 1 });
+  });
+
   test("a part of the answer of an unknown kind is counted, because the text may have a hole there", () => {
     const content = [{ type: "text", text: "Do " }, { type: "output_text", text: "not " }, { type: "text", text: "do it." }];
     expect(collect(frame({ delta: { content } })).badFrames).toBe(1);

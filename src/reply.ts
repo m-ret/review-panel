@@ -53,8 +53,12 @@ export function createReply(): { add(data: string): void; addWhole(body: string)
       return;
     }
 
+    if (choices.length === 0) return;
     const choice: unknown = choices[0];
-    if (!isRecord(choice)) return;
+    if (!isRecord(choice)) {
+      reply.badFrames += 1;
+      return;
+    }
     reply.frames += 1;
     if (typeof choice["finish_reason"] === "string") reply.finishReason = choice["finish_reason"];
     const piece = choice[part];

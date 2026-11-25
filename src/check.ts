@@ -6,6 +6,11 @@ import { internalError, transportFailure, type Failure } from "./outcome.ts";
 const PROMPT = "Reply with one word: ready";
 const MAX_TOKENS = 16;
 
+/** The most a check can cost. */
+export function worstCaseOfCheck(reviewer: Reviewer): number {
+  return worstCase(PROMPT.length, MAX_TOKENS, reviewer.usdPerMillionTokens);
+}
+
 export type CheckResult = {
   /** What went wrong, or null. */
   failure: Failure | null;
@@ -32,9 +37,8 @@ export async function checkReviewer(reviewer: Reviewer, context: Context): Promi
   }
 
   const reservation = `check ${reviewer.id}`;
-  const most = worstCase(PROMPT.length, MAX_TOKENS, reviewer.usdPerMillionTokens);
   try {
-    if (!budget.reserve(reservation, most)) return failed("over-budget", "not even its check fits under the spend cap");
+    if (!budget.reserve(reservation, worstCaseOfCheck(reviewer))) return failed("over-budget", "not even its check fits under the spend cap");
     const options = { maxOutputTokens: MAX_TOKENS, timeoutSeconds: config.limits.checkTimeoutSeconds };
     const { evidence, charge } = await ask(reviewer, PROMPT, options, context);
     return { failure: transportFailure(evidence), settle: () => budget.settle(reservation, charge) };

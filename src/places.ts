@@ -21,7 +21,7 @@ export function readConfigFile(given: string | undefined, env: Environment): str
   }
   if (mayBeTracked(realpathSync(path))) {
     throw new InputError(
-      `git tracks ${oneLine(path)}, so a change under review could rewrite where your keys and your code go. Copy it to your own folder`,
+      `git tracks ${oneLine(path)}, or cannot say that it does not. A change under review could rewrite where your keys and your code go. Copy it to your own folder`,
     );
   }
   return text;
