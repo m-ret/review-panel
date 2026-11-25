@@ -202,9 +202,9 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 
 ## What was measured
 
-All on 2026-11-24, with free models.
+All on 2026-11-24 and 25, with free models.
 
-- **Do models sign with a split code?** Out of 30 review calls, 17 came back with a complete answer, from five labs. All 17 were signed correctly and counted their findings right. The other 13 were 12 timeouts and one empty answer, and all were recorded as such.
+- **Do models sign with a split code?** Out of 34 review calls, 20 came back with a complete answer, from five labs. All 20 were signed correctly and counted their findings right. The other 14 were 13 timeouts and one empty answer, and all were recorded as such.
 - **Do empty answers happen?** Yes. One model used its whole limit of 32,000 tokens to think, sent 120,699 characters of hidden reasoning and not one character of text. The status was 200.
 - **Does a list of models prove anything?** No. One listed model gave 404.
 - **What does a 16-token check show on a reasoning model?** Status 200, only hidden reasoning, and "stopped at the token limit". It passes, as it should.

@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "state": "incomplete",
+  "decision": null,
+  "startedAt": "2026-11-25T00:06:03.846Z",
+  "source": "examples/refund.diff",
+  "sha256": "cb9d2e81a542542db98469a79e8c71ed4b73c177ae7a9da8b6df2da57e733050",
+  "kind": "diff",
+  "authors": [
+    "claude"
+  ],
+  "leftOutLabs": [
+    "anthropic"
+  ],
+  "areas": [
+    "payments",
+    "code"
+  ],
+  "risk": "high",
+  "reasons": [
+    "src/payments/refund.ts touches payments (payments, refund)"
+  ],
+  "diffProblem": null,
+  "signOffCode": "e35b40-83eb1e",
+  "wanted": 4,
+  "seated": 4,
+  "answered": 3,
+  "spend": {
+    "spentUsd": 0,
+    "capUsd": 0.5,
+    "isOverCap": false
+  },
+  "reviewers": [
+    {
+      "id": "mistral",
+      "lab": "mistral",
+      "provider": "nvidia",
+      "model": "mistralai/mistral-large-4-1t-a52b",
+      "file": "mistral.md",
+      "answered": true,
+      "findings": [
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:25-32",
+          "what": "If gateway.refund throws, the catch only logs and execution continues: refundedCents is still incremented, an audit \"refund\" row is written, and {ok:true} is returned to the admin page / gateway webhook. The ledger says the customer was refunded but no money moved through the gateway, and the caller is told it succeeded - silent ledger/gateway mismatch in payments."
+        },
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:12-32",
+          "what": "TOCTOU race on the refund cap: order (and refundedCents) is read at line 12, checked at line 16, then line 31 writes `order.refundedCents + amount*100` from the stale read. Two concurrent refundOrder calls (the doc comment says both the admin page and the gateway webhook call it, and webhook retries are expected) both pass the cap check and both run gateway.refund, so the customer is refunded twice at the gateway, while the second update overwrites the first so the DB under-records refunds and still allows further over-refunds. No idempotency key exists anywhere in this code."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:23,31",
+          "what": "`amount` is dollars as a JS float and is multiplied by 100 without rounding: 19.99*100 = 1998.9999999999998, so amountCents sent to gateway.refund and the value added to refundedCents can be a non-integer or off by one cent - the gateway may refund the wrong amount or reject it, and the stored ledger is wrong."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:16",
+          "what": "No validation that request.amount > 0: a negative (or zero) amount passes the cap check, is sent to gateway.refund as a negative amountCents, and line 31 subtracts it from refundedCents, re-opening refund room so a later request can refund more than was paid."
+        },
+        {
+          "severity": "minor",
+          "where": "src/payments/refund.ts:15-16",
+          "what": "The cap comparison mixes float math (paidCents/100 - refundedCents/100), e.g. paidCents=2999 with 1000 already refunded gives 19.989999999999998, so a legitimate request of exactly 19.99 is wrongly rejected with {ok:false}."
+        }
+      ],
+      "recommendation": null,
+      "seconds": 208.402,
+      "usage": {
+        "inputTokens": 812,
+        "outputTokens": 2513
+      },
+      "costUsd": 0,
+      "isWorstCase": false
+    },
+    {
+      "id": "nemotron",
+      "lab": "nvidia",
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "file": "nemotron.md",
+      "answered": true,
+      "findings": [
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:24",
+          "what": "Gateway refund failure is caught and logged but execution continues, so the database records a refund that never happened at the payment provider. Input: any request where gateway.refund throws (network error, provider decline, invalid chargeId). State: order exists, refund amount valid. Order of events: gateway.refund throws -> catch logs error -> db.order.update increments refundedCents -> auditLog created -> returns ok:true."
+        },
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:13",
+          "what": "Race condition allows over-refunding beyond paid amount. Input: two concurrent refundOrder calls for same orderId, each requesting an amount that individually passes the check but together exceed paidCents - refundedCents. State: order.paidCents=10000, order.refundedCents=0. Order of events: both calls read order (refundedCents=0), both pass amount check (e.g., each requests $60), both call gateway.refund, both update refundedCents to 6000, total refunded becomes $120 on a $100 order."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:7",
+          "what": "No validation that request.amount is a positive finite number. Input: request.amount = -50, NaN, Infinity, or a string that coerces. State: any valid order. Order of events: negative amount passes the check (since -50 > remaining is false), gateway.refund receives negative amountCents (provider behavior unknown), database subtracts from refundedCents (increasing balance), audit log records refund."
+        },
+        {
+          "severity": "minor",
+          "where": "src/payments/refund.ts:11",
+          "what": "Floating-point arithmetic on dollar amounts risks cent-level drift. Input: request.amount = 0.1 (cannot be represented exactly in binary). State: order.paidCents=100, order.refundedCents=0. Order of events: alreadyRefunded = 0, check uses 0.1 > 1 - 0 (true), amountCents = 0.1 * 100 = 10.000...001 or 9.999...999, gateway receives wrong cents, database update adds truncated/rounded value."
+        }
+      ],
+      "recommendation": null,
+      "seconds": 30.257,
+      "usage": {
+        "inputTokens": 845,
+        "outputTokens": 1159
+      },
+      "costUsd": 0,
+      "isWorstCase": false
+    },
+    {
+      "id": "minimax",
+      "lab": "minimax",
+      "provider": "nvidia",
+      "model": "minimaxai/minimax-m3.1-flash",
+      "file": "minimax.md",
+      "answered": true,
+      "findings": [
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:26",
+          "what": "If `gateway.refund` throws (network timeout, gateway decline, gateway 5xx), the catch only logs the error and execution continues: `refundedCents` is incremented, a \"refund\" audit row is written, and the function returns `{ ok: true }`. The order then shows money returned that never reached the gateway, and the admin page/webhook caller is told the refund succeeded. Fix: propagate the failure (rethrow or return `{ ok: false }`) and skip the order/audit writes when the gateway call fails."
+        },
+        {
+          "severity": "blocker",
+          "where": "src/payments/refund.ts:16",
+          "what": "The over-refund check reads `order.refundedCents` and line 31 writes back `order.refundedCents + amount` with no transaction, row lock, or conditional update, so two concurrent calls on the same order (admin double-click while the gateway webhook fires, or a webhook retry) both read the same `refundedCents` and both pass the check: on a $100 order two $60 refunds both go to the gateway ($120 against a $100 charge) and both DB updates write 6000, losing one update so the ledger shows only $60 refunded while $120 left the account. This also depends on idempotency/serialization in the unseen gateway code; if the gateway rejects the second call, the error is swallowed per the finding above and the state is still wrong. Fix: enforce the cap atomically (conditional update / row lock / serializable transaction) and pass an idempotency key."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:29",
+          "what": "If the order update or audit insert fails after `gateway.refund` already succeeded (DB outage, integer column rejecting the value, audit table error), the function throws with the refund already executed but nothing recorded, so the order still shows the old `refundedCents` and the same amount can be refunded again later, sending the customer more money than intended. There is no compensation or reconciliation for this ordering. Fix: persist a pending-refund/idempotency record before calling the gateway and reconcile pending records, or make the post-gateway writes retryable."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:16",
+          "what": "`request.amount` is never validated: a negative amount passes the `>` check (e.g. -50), decreasing `refundedCents` and inflating the refundable balance to $150 on a $100 order; `NaN` also passes because every comparison with NaN is false, and line 31 then stores `NaN` in `refundedCents`, after which the guard (`x > NaN`) is always false and unbounded refunds are allowed; an amount of 0 also passes and calls the gateway with 0. Fix: require a finite amount > 0 and compare in integer cents."
+        },
+        {
+          "severity": "major",
+          "where": "src/payments/refund.ts:23",
+          "what": "Dollars are converted to cents by floating-point multiplication: `request.amount = 0.29` yields `amountCents = 28.999999999999996`, so the gateway may reject the call or round it (refunding 28 or 29 cents), and the same non-integer value is written to `refundedCents` on line 31, which fails on an integer column or stores a corrupted balance; the comparison on line 16 is likewise done in float dollars. Fix: convert with `Math.round(amount * 100)` and keep all amount arithmetic in integer cents."
+        }
+      ],
+      "recommendation": null,
+      "seconds": 219.069,
+      "usage": {
+        "inputTokens": 961,
+        "outputTokens": 8651
+      },
+      "costUsd": 0,
+      "isWorstCase": false
+    },
+    {
+      "id": "step",
+      "lab": "stepfun",
+      "provider": "nvidia",
+      "model": "stepfun-ai/step-5-preview",
+      "file": "step.md",
+      "answered": false,
+      "reason": "timeout",
+      "detail": "no complete reply after 300 s, only hidden reasoning had arrived, 12405 characters",
+      "seconds": 300,
+      "usage": null,
+      "costUsd": 0,
+      "isWorstCase": true
+    }
+  ],
+  "notSeated": [
+    {
+      "id": "kimi",
+      "lab": "moonshot",
+      "reason": "check-failed",
+      "detail": "timeout: no complete reply after 60 s"
+    },
+    {
+      "id": "glm",
+      "lab": "zai",
+      "reason": "check-failed",
+      "detail": "timeout: no complete reply after 60 s"
+    },
+    {
+      "id": "laguna",
+      "lab": "poolside",
+      "reason": "not-needed",
+      "detail": "the panel was full"
+    },
+    {
+      "id": "gemma",
+      "lab": "google",
+      "reason": "check-failed",
+      "detail": "model-not-found: HTTP 404: Function '[id]': Not found for account '[id]'"
+    }
+  ]
+}

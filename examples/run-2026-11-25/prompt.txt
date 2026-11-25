@@ -11,12 +11,12 @@ FINDING | <severity> | <file>:<line> | <what goes wrong, and when>
 Severity is blocker (must not ship), major (fix it first) or minor. You may add a short fix on the lines under a finding.
 If you find no problem, name each file you read and what you checked in it.
 
-Your sign-off code has two halves. The first half is 00a586. The second half is below the change.
+Your sign-off code has two halves. The first half is e35b40. The second half is below the change.
 The last line of your answer must be your sign-off, in this form, with nothing after it:
 SIGN-OFF <first half>-<second half> | <how many FINDING lines you wrote>
 An answer without that last line is recorded as unfinished and is not counted.
 
-=====BEGIN 7d2e0ada125a0624=====
+=====BEGIN ecaac3448609a6d7=====
 diff --git a/src/payments/refund.ts b/src/payments/refund.ts
 new file mode 100644
 index 0000000..4b1f0d2
@@ -62,6 +62,6 @@ index 0000000..4b1f0d2
 +  return { ok: true };
 +}
 
-=====END 7d2e0ada125a0624=====
+=====END ecaac3448609a6d7=====
 
-The second half of your sign-off code is f3a9af. Write your answer now and end it with your sign-off line.
+The second half of your sign-off code is 83eb1e. Write your answer now and end it with your sign-off line.

@@ -33,26 +33,27 @@ The demo runs the real command against a stand-in provider on your machine. Two 
 
 ## A real run
 
-[`examples/refund.diff`](examples/refund.diff) is a refund function with bugs planted on purpose. On 2026-11-24 it went through [`panel.example.json`](panel.example.json), which lists eight models from eight labs on NVIDIA's free endpoint:
+[`examples/refund.diff`](examples/refund.diff) is a refund function with bugs planted on purpose. On 2026-11-25 it went through [`panel.example.json`](panel.example.json), which lists eight models from eight labs on NVIDIA's free endpoint:
 
 ```console
 $ review-panel --diff examples/refund.diff --author claude
 examples/refund.diff, 1 file, +38 -0
 written by claude; risk high
   src/payments/refund.ts touches payments (payments, refund)
+check failed: kimi: timeout (no complete reply after 60 s)
 check failed: glm: timeout (no complete reply after 60 s)
 check failed: gemma: model-not-found (HTTP 404: Function '[id]': Not found for account '[id]')
-asking 4 of 4: mistral, nemotron, kimi, minimax
-nemotron: answered, 5 findings
-mistral: answered, 4 findings
-minimax: answered, 6 findings
-kimi: timeout (no complete reply after 300 s, only hidden reasoning had arrived, 23491 characters)
+asking 4 of 4: mistral, nemotron, minimax, step
+nemotron: answered, 4 findings
+mistral: answered, 5 findings
+minimax: answered, 5 findings
+step: timeout (no complete reply after 300 s, only hidden reasoning had arrived, 12405 characters)
 3 of 4 reviewers answered. This panel is not complete. A missing answer is not agreement. The decision is yours.
 ```
 
-The three that answered all found the two worst bugs: a refund that the gateway refuses is still written down as paid, and two requests at once pay twice. The fourth thought for five minutes and said nothing, so the command ended with exit code 1. Two models never got a seat. The provider lists one of them, but calling it gives "404 Not Found".
+The three that answered all found the two worst bugs: a refund that the gateway refuses is still written down as paid, and two requests at once pay twice. The fourth thought for five minutes and said nothing, so the command ended with exit code 1. Three models never got a seat. The provider lists one of those, but calling it gives "404 Not Found".
 
-Read [the summary](examples/run-2026-11-24/summary.md), [what one reviewer wrote](examples/run-2026-11-24/mistral.md), or [the one that did not answer](examples/run-2026-11-24/kimi.md).
+Read [the summary](examples/run-2026-11-25/summary.md), [what one reviewer wrote](examples/run-2026-11-25/mistral.md), or [the one that did not answer](examples/run-2026-11-25/step.md).
 
 ## What counts as an answer
 
