@@ -221,6 +221,17 @@ describe("runPanel", () => {
     expect(panel.isOverCap).toBe(false);
   });
 
+  test("a reviewer that could never fit under the cap is not even checked, so its check cannot use up the cap", async () => {
+    const price = { input: 60, output: 100 }; // an answer may cost 100,000; a check sets aside about 33,000
+    const { panel, provider } = await run(
+      { a: { behavior: reviews(), price }, b: { behavior: reviews(), price }, c: reviews(), d: reviews(), e: reviews() },
+      { limits: { maxUsd: 0.05 } },
+    );
+    expect(panel.seats.map((seat) => seat.id)).toEqual(["c", "d", "e"]);
+    expect(panel.bench.map((one) => [one.reviewer.id, one.reason])).toEqual([["a", "over-budget"], ["b", "over-budget"]]);
+    expect(provider.requests.filter((request) => ["a", "b"].includes(request.model))).toEqual([]);
+  });
+
   test("a reply without usage is charged its worst case, and says so", async () => {
     const noUsage = afterCheck((request) => stream([frame("a", { content: signOff(request, 0) }, "stop"), sse("[DONE]")]));
     const price = { input: 0, output: 100 };

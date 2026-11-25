@@ -76,7 +76,12 @@ export async function runPanel(
   const { config, budget } = context;
   const { maxOutputTokens } = config.limits;
 
-  const candidates = config.reviewers.filter((reviewer) => !plan.authors.labs.has(reviewer.lab));
+  const cap = budget.left();
+  const worst = (reviewer: Reviewer) => worstCaseOf(reviewer, plan, maxOutputTokens);
+  // A reviewer that could never fit is not checked: the money set aside for its check could keep another out.
+  const candidates = config.reviewers.filter(
+    (reviewer) => !plan.authors.labs.has(reviewer.lab) && worst(reviewer) <= cap,
+  );
   const checks = await Promise.all(
     candidates.map(async (reviewer) => ({ reviewer, check: await checkReviewer(reviewer, context) })),
   );
@@ -92,7 +97,7 @@ export async function runPanel(
     areas: plan.classification.areas,
     risk: plan.classification.risk,
     failedChecks,
-    reserve: (reviewer) => budget.reserve(reviewer.id, worstCaseOf(reviewer, plan, maxOutputTokens)),
+    reserve: (reviewer) => budget.reserve(reviewer.id, worst(reviewer)),
   });
 
   // Only now, so that what a provider says its check cost cannot change who sits.
