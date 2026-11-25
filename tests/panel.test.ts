@@ -241,18 +241,35 @@ describe("runPanel", () => {
 
   test("a call that ended badly on the server may have been charged, so its worst case counts", async () => {
     const price = { input: 0, output: 100 };
-    const { result } = await run(
-      { a: { behavior: afterCheck(refuses(504, "gateway timeout")), price }, b: reviews(), c: reviews() },
-      { limits: { maxUsd: 1 } },
-    );
-    expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+    for (const status of [500, 504]) {
+      const { result } = await run(
+        { a: { behavior: afterCheck(refuses(status, "failed")), price }, b: reviews(), c: reviews() },
+        { limits: { maxUsd: 1 } },
+      );
+      expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+    }
+  });
+
+  test("a call that was turned down or sent elsewhere costs nothing", async () => {
+    const price = { input: 0, output: 100 };
+    for (const status of [300, 307, 400, 429, 499]) {
+      const { result } = await run(
+        { a: { behavior: afterCheck(refuses(status, "no")), price }, b: reviews(), c: reviews() },
+        { limits: { maxUsd: 1 } },
+      );
+      expect(result("a")).toMatchObject({ cost: 0, isWorstCase: false });
+    }
   });
 
   test("usage that came before the answer was finished is not the cost of the call", async () => {
-    const early = afterCheck(() => stream([usageFrame("a", 1000, 0), frame("a", { content: "half" }), 3000]));
     const price = { input: 0, output: 100 };
-    const { result } = await run({ a: { behavior: early, price }, b: reviews(), c: reviews() }, { limits: { maxUsd: 1 } });
-    expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+    const hangs = stream([usageFrame("a", 1000, 0), frame("a", { content: "half" }), 3000]);
+    const closes = stream([usageFrame("a", 1000, 0), frame("a", { content: "half" })]);
+    for (const reply of [hangs, closes]) {
+      const early = afterCheck(() => reply);
+      const { result } = await run({ a: { behavior: early, price }, b: reviews(), c: reviews() }, { limits: { maxUsd: 1 } });
+      expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+    }
   });
 
   test("what a check says it cost does not change who sits", async () => {

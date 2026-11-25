@@ -221,6 +221,15 @@ describe("a run", () => {
     expect((await cli(folder, [...RANGE, "--author", "claude", "--out", "deep/er/still"])).exit).toBe(0);
   });
 
+  test("a key of only eight characters is still a key", async () => {
+    const key = "k3y-8chr";
+    const echo = afterCheck(refuses(401, { error: { message: `bad key ${key}` } }));
+    const { folder } = project({ a: reviews(), b: echo, c: reviews() });
+    const { err } = await cli(folder, [...RANGE, "--author", "claude"], { env: { MAIN_API_KEY: key } });
+    expect(err).toContain("bad key [key]");
+    expect(err).not.toContain(key);
+  });
+
   test("a dummy key, as local servers use, is not mistaken for a word of the answer", async () => {
     const none = says((request) => `I read src/parse.ts.\n${signOff(request, "none")}`);
     const { folder } = project({ a: none, b: none, c: none });
@@ -293,7 +302,9 @@ describe("what it reads", () => {
     const { folder, provider } = project(three());
     const diff = "--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+from a file\n";
     write(folder, "one.diff", diff);
-    expect((await cli(folder, ["--diff", "one.diff", "--author", "claude"])).exit).toBe(0);
+    const fromFile = await cli(folder, ["--diff", "one.diff", "--author", "claude"]);
+    expect(fromFile.exit).toBe(0);
+    expect(fromFile.err).toContain("asking 2 of 2: a, b");
     expect((await cli(folder, ["--diff", "-", "--author", "claude"], { stdin: diff })).exit).toBe(0);
     const prompts = provider.requests.filter((request) => !request.isCheck).map((request) => request.prompt);
     expect(prompts).toHaveLength(4); // one changed line is low risk: two seats, twice
