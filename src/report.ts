@@ -3,7 +3,7 @@ import { dollars } from "./budget.ts";
 import type { Outcome } from "./outcome.ts";
 import type { Panel, Plan, SeatResult } from "./panel.ts";
 import { signOffCode } from "./prompt.ts";
-import { fenced, tableCell } from "./text.ts";
+import { fenced, stripControls, tableCell } from "./text.ts";
 
 export type Run = {
   /** What was reviewed, in words: "git diff main...HEAD". */
@@ -76,17 +76,24 @@ function headline(panel: Panel): string[] {
 
 function facts({ source, startedAt, maxUsd, plan, panel }: Run): string[] {
   const { areas, risk, reasons } = plan.classification;
-  const labs = [...plan.authors.labs];
   const size = plan.diff ? `, ${sizeOf(plan)}` : "";
   return list([
     ["Reviewed", `${source}${size}`],
-    ["Written by", `${plan.authors.names.join(", ")}, so ${labs.length > 0 ? labs.join(" and ") : "no lab"} sits out`],
+    ["Fingerprint", `sha256 ${plan.fingerprint.slice(0, 16)}`],
+    ["Written by", `${plan.authors.names.join(", ")}, so ${whoSitsOut(plan, panel)}`],
     ["Touches", areas.join(", ")],
     ["Risk", risk],
     ["Why", reasons.join("; ")],
     ["Cost", `${dollars(panel.spent)} of ${dollars(Math.round(maxUsd * 1_000_000))}`],
     ["Run", `${startedAt.toISOString().slice(0, 16).replace("T", " ")} UTC, sign-off code ${signOffCode(plan.codes)}`],
   ]);
+}
+
+/** A lab without a reviewer is named too: if that surprises the reader, the config may be wrong. */
+function whoSitsOut(plan: Plan, panel: Panel): string {
+  const hasReviewer = (lab: string) => panel.bench.some(({ reviewer, reason }) => reason === "author" && reviewer.lab === lab);
+  const labs = [...plan.authors.labs].map((lab) => `${lab} sits out${hasReviewer(lab) ? "" : " (it has no reviewer here)"}`);
+  return labs.length === 0 ? "no lab sits out" : labs.join(", ");
 }
 
 export function sizeOf(plan: Plan): string {
@@ -148,12 +155,13 @@ function recommendationRows(panel: Panel): string[][] {
 
 /** The same facts for a program. `decision` is always null: no code here ever fills it in. */
 export function summaryJson({ source, startedAt, maxUsd, plan, panel }: Run): Record<string, unknown> {
-  return {
+  const summary = {
     version: 1,
     state: panel.state,
     decision: null,
     startedAt: startedAt.toISOString(),
     source,
+    sha256: plan.fingerprint,
     kind: plan.kind,
     authors: plan.authors.names,
     leftOutLabs: [...plan.authors.labs],
@@ -185,6 +193,8 @@ export function summaryJson({ source, startedAt, maxUsd, plan, panel }: Run): Re
       detail,
     })),
   };
+  // Paths and names come from outside, and JSON keeps characters that a terminal would obey.
+  return JSON.parse(JSON.stringify(summary, (_key, value) => (typeof value === "string" ? stripControls(value) : value)));
 }
 
 /** One reviewer's file. The text is kept as it came, in a block where nothing renders. */

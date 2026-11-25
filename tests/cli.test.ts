@@ -221,6 +221,12 @@ describe("a run", () => {
     expect((await cli(folder, [...RANGE, "--author", "claude", "--out", "deep/er/still"])).exit).toBe(0);
   });
 
+  test("a dummy key, as local servers use, is not mistaken for a word of the answer", async () => {
+    const none = says((request) => `I read src/parse.ts.\n${signOff(request, "none")}`);
+    const { folder } = project({ a: none, b: none, c: none });
+    expect((await cli(folder, [...RANGE, "--author", "claude"], { env: { MAIN_API_KEY: "none" } })).exit).toBe(0);
+  });
+
   test("by default the results go to a new folder of their own, outside the folder under review", async () => {
     const { folder } = project(three());
     const before = filesIn(folder);

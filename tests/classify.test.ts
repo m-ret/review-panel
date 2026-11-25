@@ -74,6 +74,31 @@ describe("classifyDiff: what the change touches", () => {
   });
 });
 
+describe("classifyDiff: what a name cannot hide", () => {
+  test("a workflow is infrastructure, whatever it is called", () => {
+    for (const path of [".github/workflows/x.test.yml", ".github/actions/test/action.yml", ".github/workflows/README.md.yml"]) {
+      expect(areas({ path })).toEqual(["infra"]);
+      expect(risk({ path, added: 1, removed: 0 })).toBe("high");
+    }
+  });
+
+  test("SQL, Terraform and a Dockerfile are never just tests", () => {
+    expect(risk({ path: "migrations/1.test.sql", added: 1, removed: 0 })).toBe("high");
+    expect(risk({ path: "tests/main.tf", added: 1, removed: 0 })).toBe("high");
+    expect(risk({ path: "tests/Dockerfile", added: 1, removed: 0 })).toBe("high");
+  });
+
+  test("a test that destroys data is not a harmless test", () => {
+    expect(risk({ path: "tests/reset.ts", added: 1, removed: 0, addedText: "rm -rf /" })).toBe("high");
+  });
+
+  test("a lot of code on one line is a lot of code", () => {
+    const line = "x();".repeat(1500);
+    expect(risk({ path: "src/parse.ts", added: 1, removed: 0, addedText: line })).toBe("medium");
+    expect(risk({ path: "src/parse.ts", added: 1, removed: 0, addedText: line.repeat(15) })).toBe("high");
+  });
+});
+
 describe("classifyDiff: risk", () => {
   test("every sensitive area is high risk", () => {
     expect(risk({ path: "src/auth/login.ts", added: 1, removed: 0 })).toBe("high");

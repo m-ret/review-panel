@@ -1,3 +1,4 @@
+import { isThisMachine } from "./config.ts";
 import { createReply, type Usage } from "./reply.ts";
 import { createSseReader } from "./sse.ts";
 import { providerNote, stripControls, withoutKeys } from "./text.ts";
@@ -71,6 +72,10 @@ export async function callModel(
       signal: AbortSignal.timeout(options.timeoutMs),
       // Bun gives up on a silent connection after five minutes; the line above is the only clock here.
       timeout: false,
+      // A proxy would get the key in the clear on its way to a server on this machine.
+      ...(isThisMachine(target.baseUrl) ? { proxy: false as const } : {}),
+      // Bun can be told to print every request, headers and all.
+      verbose: false,
     });
     status = response.status;
     retryAfter = response.headers.get("retry-after");

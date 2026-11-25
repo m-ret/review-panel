@@ -104,6 +104,15 @@ describe("parseFindings", () => {
     expect(parseFindings("FINDING: something vague")).toEqual([]);
   });
 
+  test("a hostile line cannot hold the run up", () => {
+    const started = performance.now();
+    for (const line of ["`".repeat(20_000), "*".repeat(20_000), `FINDING ${"_ ".repeat(20_000)}|`, `${" ".repeat(20_000)}x`, `${"`".repeat(8000)}x`]) {
+      parseFindings(line);
+      readSignOff(line, CODE);
+    }
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
   test("the example line from the instructions is not a finding when a model repeats it", () => {
     expect(parseFindings("FINDING | blocker, major or minor | path/to/file.ts:42 | what goes wrong, and when")).toEqual([]);
   });

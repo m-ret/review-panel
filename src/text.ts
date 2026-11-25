@@ -16,13 +16,18 @@ export function oneLine(text: string, max = 200): string {
   return line.length <= max ? line : `${line.slice(0, max - 1)}…`;
 }
 
+/** More than this is not read. The searches below would take too long on a text made to slow them down. */
+const LONGEST_NOTE = 4000;
+
 /**
  * A provider's error body as one short note that is safe to keep.
  * Error bodies often quote the caller's key, account id or email, so those go.
  */
 export function providerNote(body: string, secrets: readonly string[]): string {
-  const note = withoutKeys(errorMessage(body), secrets)
-    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu, "[email]")
+  // Invisible characters and escaped slashes go first, or a key could hide behind them.
+  const message = stripControls(errorMessage(body).slice(0, LONGEST_NOTE)).replaceAll("\\/", "/");
+  const note = withoutKeys(message, secrets)
+    .replace(/\S+@\S+/gu, (run) => (/^[\w.+-]+@[\w-]+(?:\.[\w-]+)+/u.test(run) ? "[email]" : run))
     .replace(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/giu, "[id]")
     .replace(/[A-Za-z0-9_-]{20,}/gu, (run) => (looksLikeId(run) ? "[id]" : run));
   return oneLine(note);
@@ -33,9 +38,10 @@ export function withoutKeys(text: string, secrets: readonly string[]): string {
   return secrets.reduce((clean, secret) => (secret === "" ? clean : clean.replaceAll(secret, "[key]")), text);
 }
 
-/** Mixed upper case, lower case and digits in one long run: an id or a key, not a word. */
+/** A long run that mixes letters and digits is an id or a key. A shorter one only if it also mixes cases. */
 function looksLikeId(run: string): boolean {
-  return /[A-Z]/u.test(run) && /[a-z]/u.test(run) && /[0-9]/u.test(run);
+  if (!/[0-9]/u.test(run) || !/[A-Za-z]/u.test(run)) return false;
+  return run.length >= 32 || (/[A-Z]/u.test(run) && /[a-z]/u.test(run));
 }
 
 function errorMessage(body: string): string {

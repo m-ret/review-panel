@@ -11,6 +11,7 @@ import {
   sse,
   startFakeProvider,
   stream,
+  usageFrame,
 } from "../demo/fake-provider.ts";
 import { type Budget, createBudget } from "../src/budget.ts";
 import { type Config, parseConfig } from "../src/config.ts";
@@ -227,6 +228,44 @@ describe("runPanel", () => {
     expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
   });
 
+  test("a call that ended badly on the server may have been charged, so its worst case counts", async () => {
+    const price = { input: 0, output: 100 };
+    const { result } = await run(
+      { a: { behavior: afterCheck(refuses(504, "gateway timeout")), price }, b: reviews(), c: reviews() },
+      { limits: { maxUsd: 1 } },
+    );
+    expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+  });
+
+  test("usage that came before the answer was finished is not the cost of the call", async () => {
+    const early = afterCheck(() => stream([usageFrame("a", 1000, 0), frame("a", { content: "half" }), 3000]));
+    const price = { input: 0, output: 100 };
+    const { result } = await run({ a: { behavior: early, price }, b: reviews(), c: reviews() }, { limits: { maxUsd: 1 } });
+    expect(result("a")).toMatchObject({ cost: 100_000, isWorstCase: true });
+  });
+
+  test("what a check says it cost does not change who sits", async () => {
+    const seatsWhenXReports = async (tokens: number) => {
+      const x: Behavior = (request) =>
+        request.isCheck
+          ? stream([frame("x", { content: "ready" }, "stop"), usageFrame("x", tokens, 2), sse("[DONE]")])
+          : reviews()(request);
+      const { panel } = await run(
+        {
+          strong: { behavior: reviews(), price: { input: 0, output: 100 } },
+          x: { behavior: x, price: { input: 1, output: 1 } },
+          cheap: reviews(),
+        },
+        { limits: { maxUsd: 0.12 } },
+      );
+      return { seats: panel.seats.map((seat) => seat.id), isOverCap: panel.isOverCap };
+    };
+    const normal = await seatsWhenXReports(20);
+    expect(normal).toEqual({ seats: ["strong", "x", "cheap"], isOverCap: false });
+    expect((await seatsWhenXReports(20_000)).seats).toEqual(normal.seats);
+    expect(await seatsWhenXReports(9e15)).toEqual({ seats: normal.seats, isOverCap: true });
+  });
+
   test("a provider that charges more than its worst case is reported", async () => {
     const greedy = afterCheck(says((request) => signOff(request, 0), { input: 1000, output: 900_000 }));
     const { panel } = await run(
@@ -259,7 +298,7 @@ describe("runPanel", () => {
     const price = { input: 1, output: 1 };
     const paid = (behavior: Behavior) => ({ behavior, price });
     const { panel, budget } = await run(
-      { a: paid(reviews()), b: paid(afterCheck(refuses(500, "down"))), c: paid(reviews()), d: paid(reviews()), e: paid(reviews()) },
+      { a: paid(reviews()), b: paid(afterCheck(refuses(429, "slow down"))), c: paid(reviews()), d: paid(reviews()), e: paid(reviews()) },
       {
         limits: { maxUsd: 1 },
         spoil: (config) => {
@@ -269,8 +308,8 @@ describe("runPanel", () => {
     );
     expect(panel.bench).toMatchObject([{ reason: "check-failed", detail: expect.stringContaining("internal-error") }, {}]);
     expect(budget.left()).toBe(1_000_000 - budget.spent());
-    // Four checks of 22, two reviews of 1200. The refused review and the check that was never sent cost nothing.
-    expect(budget.spent()).toBe(4 * 22 + 2 * 1200);
+    // Four checks of 22 and two reviews of 1200. The refused review cost nothing. Our own mistake counts its worst case.
+    expect(budget.spent()).toBe(4 * 22 + 2 * 1200 + (26 + 500 + 16));
   });
 
   test("a bug of ours in one check leaves that reviewer out, and the panel goes on", async () => {
@@ -279,9 +318,9 @@ describe("runPanel", () => {
       {
         budget: (real) => ({
           ...real,
-          settle(id, micros) {
+          reserve(id, micros) {
             if (id === "check b") throw new Error("boom");
-            real.settle(id, micros);
+            return real.reserve(id, micros);
           },
         }),
       },

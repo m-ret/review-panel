@@ -1,5 +1,6 @@
 import { parseFindings, readSignOff, type Finding } from "./answer.ts";
 import type { Evidence } from "./call.ts";
+import { oneLine } from "./text.ts";
 import type { Kind } from "./types.ts";
 
 /** Every way a reviewer can fail to answer. Each one needs a different fix, so each has its own name. */
@@ -27,7 +28,8 @@ export type Outcome =
   | { answered: true; findings: Finding[]; recommendation: string | null }
   | ({ answered: false } & Failure);
 
-/** Names that different providers use for "stopped at the token limit". */
+/** Names that different servers use for "finished", and for "stopped at the token limit". */
+const FINISHED = ["stop", "eos", "eos_token", "end_turn", "stop_sequence"];
 const CUT = ["length", "max_tokens", "model_length"];
 const NO_CREDIT = /insufficient[_ ](?:quota|balance|funds|credits?)|exceeded your current quota|credit balance is too low/iu;
 
@@ -78,20 +80,22 @@ function refusalReason(status: number | null, code: string, note: string): NoAns
  */
 export function judge(evidence: Evidence, kind: Kind, code: string): Outcome {
   const no = (reason: NoAnswer, detail: string): Outcome => ({ answered: false, reason, detail });
-  const { text, finishReason } = evidence;
+  const { text } = evidence;
+  const finish = evidence.finishReason?.toLowerCase() ?? "";
 
   const failure = transportFailure(evidence);
   if (failure) return { answered: false, ...failure };
-  if (finishReason === "error") return no("provider-error", "the provider said the generation failed");
-  if (finishReason === "content_filter") return no("filtered", "held back by the provider's content filter");
+  if (finish === "error") return no("provider-error", "the provider said the generation failed");
+  if (finish === "content_filter") return no("filtered", "held back by the provider's content filter");
   if (text.trim() === "") {
     return evidence.reasoningChars > 0
       ? no("empty", `only hidden reasoning arrived, ${evidence.reasoningChars} characters; raise maxOutputTokens`)
       : no("empty", "the provider sent no text");
   }
-  if (CUT.includes(finishReason ?? "")) return no("truncated", "stopped at the token limit");
-  if (finishReason === null && !evidence.done) {
-    return no("truncated", "the stream closed before the provider said it was finished");
+  if (CUT.includes(finish)) return no("truncated", "stopped at the token limit");
+  if (finish === "") return no("truncated", "the provider never said that it was finished");
+  if (!FINISHED.includes(finish)) {
+    return no("provider-error", `stopped for a reason this program does not know: ${evidence.finishReason}`);
   }
 
   const signOff = readSignOff(text, code);
@@ -110,4 +114,9 @@ function countIn(signOff: string): number | null {
   if (/^(?:none|no findings?)\.?$/iu.test(signOff)) return 0;
   const digits = /^(\d+)(?:\s+findings?)?\.?$/iu.exec(signOff)?.[1];
   return digits === undefined ? null : Number(digits);
+}
+
+/** A bug of ours must show up as a reviewer that did not answer, not as a lost one. */
+export function internalError(error: unknown): Failure {
+  return { reason: "internal-error", detail: oneLine(error instanceof Error ? error.message : String(error)) };
 }

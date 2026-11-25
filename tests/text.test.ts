@@ -79,6 +79,26 @@ describe("providerNote", () => {
     expect(note.length).toBeLessThanOrEqual(200);
   });
 
+  test("hides a key that the provider wrote with an invisible character inside", () => {
+    const key = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
+    expect(providerNote(`bad key ${key.slice(0, 8)}\u200b${key.slice(8)}`, [key])).toBe("bad key [key]");
+  });
+
+  test("hides a key whose slashes came back escaped", () => {
+    expect(providerNote('{"errors":["abc\\/def+ghi\\/jkl="]}', ["abc/def+ghi/jkl="])).not.toContain("def+ghi");
+  });
+
+  test("hides a long run of lower-case letters and digits, which may be a key of any kind", () => {
+    expect(providerNote("token 0f1e2d3c4b5a69788796a5b4c3d2e1f0a9 is wrong", [])).toBe("token [id] is wrong");
+  });
+
+  test("a very long message is cut before it is searched, so it cannot hold the run up", () => {
+    const started = performance.now();
+    expect(providerNote("a".repeat(300_000), []).length).toBeLessThanOrEqual(200);
+    expect(providerNote(`${"a@".repeat(150_000)}`, []).length).toBeLessThanOrEqual(200);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
   test("an empty secret never blanks the whole message", () => {
     expect(providerNote("plain", [""])).toBe("plain");
   });

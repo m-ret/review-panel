@@ -35,6 +35,11 @@ describe("findSecrets", () => {
     expect(findSecrets(`+if (text.startsWith("${header}")) {\n+  return true;\n`, [])).toEqual([]);
   });
 
+  test("a private key of any kind", () => {
+    const header = fake("-----BEGIN SSH2 ENCRYPTED ", "PRIVATE KEY-----");
+    expect(findSecrets(`+${header}\n+${letters}${letters}\n`, [])).toEqual([{ what: "a private key", line: 1 }]);
+  });
+
   test("a private key written on one line, as service account files do, is found", () => {
     const header = fake("-----BEGIN ", "PRIVATE KEY-----");
     expect(findSecrets(`+  "private_key": "${header}\\n${letters}${letters}\\n"`, [])).toEqual([

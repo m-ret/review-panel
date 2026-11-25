@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ask, type Context } from "./ask.ts";
 import { worstCase } from "./budget.ts";
 import type { Evidence } from "./call.ts";
@@ -5,10 +6,9 @@ import { checkReviewer } from "./check.ts";
 import { classifyDiff, classifyQuestion, raiseRisk, type Classification } from "./classify.ts";
 import type { Reviewer } from "./config.ts";
 import { parseDiff, type ParsedDiff } from "./diff.ts";
-import { judge, type Failure, type Outcome } from "./outcome.ts";
+import { internalError, judge, type Failure, type Outcome } from "./outcome.ts";
 import { buildPrompt, makeCodes, signOffCode, type Codes } from "./prompt.ts";
 import { chooseSeats, FEWEST_SEATS, type Bench } from "./seats.ts";
-import { oneLine } from "./text.ts";
 import type { Kind, Risk } from "./types.ts";
 
 export type Authors = { names: readonly string[]; labs: ReadonlySet<string> };
@@ -22,6 +22,8 @@ export type Plan = {
   classification: Classification;
   codes: Codes;
   prompt: string;
+  /** SHA-256 of the work, so that a later version of it cannot pass for the one that was reviewed. */
+  fingerprint: string;
 };
 
 export type SeatResult = {
@@ -53,7 +55,8 @@ export function planPanel(input: { kind: Kind; material: string; authors: Author
   const classification = raiseRisk(diff ? classifyDiff(diff) : classifyQuestion(material), askedRisk);
   const codes = makeCodes();
   const prompt = buildPrompt({ kind, areas: classification.areas, material, codes });
-  return { kind, authors, diff, classification, codes, prompt };
+  const fingerprint = createHash("sha256").update(material).digest("hex");
+  return { kind, authors, diff, classification, codes, prompt, fingerprint };
 }
 
 /** The most this reviewer should cost for this plan. */
@@ -75,11 +78,11 @@ export async function runPanel(
 
   const candidates = config.reviewers.filter((reviewer) => !plan.authors.labs.has(reviewer.lab));
   const checks = await Promise.all(
-    candidates.map(async (reviewer) => [reviewer.id, await checkReviewer(reviewer, context).catch(internalError)] as const),
+    candidates.map(async (reviewer) => ({ reviewer, check: await checkReviewer(reviewer, context) })),
   );
   const failedChecks = new Map<string, Failure>();
-  for (const [id, failure] of checks) {
-    if (failure) failedChecks.set(id, failure);
+  for (const { reviewer, check } of checks) {
+    if (check.failure) failedChecks.set(reviewer.id, check.failure);
   }
   steps.onChecks?.(failedChecks);
 
@@ -92,6 +95,8 @@ export async function runPanel(
     reserve: (reviewer) => budget.reserve(reviewer.id, worstCaseOf(reviewer, plan, maxOutputTokens)),
   });
 
+  // Only now, so that what a provider says its check cost cannot change who sits.
+  for (const { check } of checks) check.settle();
   steps.onSeats?.(seats, wanted, bench);
 
   if (seats.length < FEWEST_SEATS) {
@@ -121,23 +126,16 @@ export async function runPanel(
 }
 
 async function review(reviewer: Reviewer, plan: Plan, context: Context): Promise<SeatResult> {
-  const { maxOutputTokens, timeoutSeconds } = context.config.limits;
+  const { budget, config } = context;
+  const { maxOutputTokens, timeoutSeconds } = config.limits;
   const most = worstCaseOf(reviewer, plan, maxOutputTokens);
   try {
-    const { evidence, charge } = await ask(
-      reviewer,
-      plan.prompt,
-      { reservation: reviewer.id, maxOutputTokens, timeoutSeconds },
-      context,
-    );
+    const { evidence, charge } = await ask(reviewer, plan.prompt, { maxOutputTokens, timeoutSeconds }, context);
+    budget.settle(reviewer.id, charge);
     const outcome = judge(evidence, plan.kind, signOffCode(plan.codes));
     return { reviewer, outcome, evidence, cost: charge ?? most, isWorstCase: charge === null };
   } catch (error) {
+    budget.close(reviewer.id);
     return { reviewer, outcome: { answered: false, ...internalError(error) }, evidence: null, cost: most, isWorstCase: true };
   }
-}
-
-/** A bug of ours must show up as a seat that did not answer, not as a lost one. */
-function internalError(error: unknown): Failure {
-  return { reason: "internal-error", detail: oneLine(error instanceof Error ? error.message : String(error)) };
 }

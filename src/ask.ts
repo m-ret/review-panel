@@ -11,35 +11,32 @@ export type Context = {
   secrets: readonly string[];
 };
 
-/** Asks one reviewer and settles what was reserved under `reservation`, whatever happens. */
+/** Asks one reviewer, and says what the call cost, or null when nobody said. */
 export async function ask(
   reviewer: Reviewer,
   prompt: string,
-  options: { reservation: string; maxOutputTokens: number; timeoutSeconds: number },
-  { config, keys, budget, secrets }: Context,
+  options: { maxOutputTokens: number; timeoutSeconds: number },
+  { config, keys, secrets }: Context,
 ): Promise<{ evidence: Evidence; charge: number | null }> {
-  let charge: number | null = 0;
-  try {
-    const provider = config.providers[reviewer.provider];
-    const key = keys[reviewer.provider];
-    if (!provider || !key || key.state === "missing") throw new Error(`${reviewer.id} cannot be called without its key`);
+  const provider = config.providers[reviewer.provider];
+  const key = keys[reviewer.provider];
+  if (!provider || !key || key.state === "missing") throw new Error(`${reviewer.id} cannot be called without its key`);
 
-    charge = null; // from here on it may cost something
-    const evidence = await callModel(
-      { ...provider, key: key.state === "present" ? key.key : null, model: reviewer.model },
-      prompt,
-      { maxOutputTokens: options.maxOutputTokens, timeoutMs: options.timeoutSeconds * 1000, secrets },
-    );
-    charge = chargeOf(evidence, reviewer);
-    return { evidence, charge };
-  } finally {
-    budget.settle(options.reservation, charge);
-  }
+  const evidence = await callModel(
+    { ...provider, key: key.state === "present" ? key.key : null, model: reviewer.model },
+    prompt,
+    { maxOutputTokens: options.maxOutputTokens, timeoutMs: options.timeoutSeconds * 1000, secrets },
+  );
+  return { evidence, charge: chargeOf(evidence, reviewer) };
 }
 
-/** What a call cost, or null when nobody said. A refused request is not charged. */
-function chargeOf(evidence: Evidence, reviewer: Reviewer): number | null {
-  if (evidence.usage) return costOf(evidence.usage, reviewer.usdPerMillionTokens);
-  const isRefused = evidence.status !== null && (evidence.status < 200 || evidence.status >= 300);
-  return isRefused ? 0 : null;
+/**
+ * A request that was turned down is not charged. Otherwise only a finished
+ * answer knows its cost: usage can also come early, or a server can fail after
+ * it did the work.
+ */
+function chargeOf({ status, end, finishReason, usage }: Evidence, reviewer: Reviewer): number | null {
+  if (status !== null && status >= 300 && status < 500) return 0;
+  const isFinished = end === "closed" && finishReason !== null;
+  return isFinished && usage ? costOf(usage, reviewer.usdPerMillionTokens) : null;
 }

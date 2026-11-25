@@ -58,6 +58,7 @@ const plan = (over: Partial<Plan> = {}): Plan => ({
   classification: { areas: ["payments", "code"], risk: "medium", reasons: ["src/pay.ts touches payments (pay)"] },
   codes: { first: "7f3a9c", second: "91bc04", marker: "c0ffee12" },
   prompt: "the prompt",
+  fingerprint: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
   ...over,
 });
 
@@ -228,9 +229,18 @@ describe("summaryMarkdown", () => {
   });
 
   test("says who wrote the work, and that nobody was left out when a person did", () => {
-    expect(summaryMarkdown(complete)).toMatch(/claude.*anthropic/u);
+    expect(summaryMarkdown(complete)).toContain("claude, so anthropic sits out (it has no reviewer here)");
+    const benched = run([seat("a", clean), seat("b", clean)], {
+      bench: [{ reviewer: { ...reviewer("opus"), lab: "anthropic" }, reason: "author", detail: "anthropic wrote the work" }],
+    });
+    expect(summaryMarkdown(benched)).toContain("claude, so anthropic sits out\n");
     const human = run([seat("a", clean), seat("b", clean)], {}, { authors: { names: ["human"], labs: new Set() } });
     expect(summaryMarkdown(human)).toMatch(/human.*no lab sits out/u);
+  });
+
+  test("carries the fingerprint of what was reviewed, so a later version cannot pass for it", () => {
+    expect(summaryMarkdown(complete)).toContain("sha256 ba7816bf8f01cfea");
+    expect(summaryJson(complete)).toMatchObject({ sha256: complete.plan.fingerprint });
   });
 
   test("shows the risk with its reasons, the size, and the cost against the cap", () => {
@@ -314,6 +324,12 @@ describe("summaryJson", () => {
       diffProblem: problem,
       reviewers: [{ seconds: null, usage: null }],
     });
+  });
+
+  test("holds no control characters from outside", () => {
+    const reasons = ["src/\u009b31m\u202eauth.ts touches security (auth)"];
+    const dirty = run([seat("a", clean), seat("b", clean)], {}, { classification: { areas: ["code"], risk: "high", reasons } });
+    expect(JSON.stringify(summaryJson({ ...dirty, source: "a\u009bb" }))).not.toMatch(/[\u0080-\u009f\u202e]/u);
   });
 
   test("survives being written and read back", () => {

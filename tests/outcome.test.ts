@@ -56,12 +56,10 @@ describe("judge: what counts as an answer", () => {
     });
   });
 
-  test("an unusual finish reason is fine when the answer is whole and signed", () => {
-    expect(diff({ finishReason: "eos_token" })).toMatchObject({ answered: true });
-  });
-
-  test("a provider that never sends a finish reason is fine when it sends its end mark", () => {
-    expect(diff({ finishReason: null, done: true })).toMatchObject({ answered: true });
+  test("the words that different servers use for 'finished' all count", () => {
+    for (const finishReason of ["stop", "eos", "eos_token", "end_turn", "stop_sequence", "STOP"]) {
+      expect(diff({ finishReason })).toMatchObject({ answered: true });
+    }
   });
 });
 
@@ -87,10 +85,26 @@ describe("judge: what does not", () => {
     expect(reasonOf({ finishReason: "length" })).toBe("truncated");
     expect(reasonOf({ finishReason: "max_tokens" })).toBe("truncated");
     expect(reasonOf({ finishReason: "model_length" })).toBe("truncated");
+    expect(reasonOf({ finishReason: "MAX_TOKENS" })).toBe("truncated");
   });
 
   test("a stream that closed before the provider said it was finished, even if what arrived is signed", () => {
     expect(reasonOf({ finishReason: null, done: false })).toBe("truncated");
+  });
+
+  test("a provider that never said it was finished, even if it sent its end mark", () => {
+    expect(reasonOf({ finishReason: null, done: true })).toBe("truncated");
+    expect(reasonOf({ finishReason: "", done: true })).toBe("truncated");
+  });
+
+  test("a reason nobody here knows: it may mean cut, filtered or failed", () => {
+    for (const finishReason of ["abort", "sensitive", "network_error", "insufficient_system_resource", "tool_calls"]) {
+      expect(diff({ finishReason })).toEqual({
+        answered: false,
+        reason: "provider-error",
+        detail: `stopped for a reason this program does not know: ${finishReason}`,
+      });
+    }
   });
 
   test("held back by the provider's filter", () => {

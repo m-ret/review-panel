@@ -48,13 +48,15 @@ async function check(
       : key === "not-needed"
         ? { state: "not-needed" }
         : { state: "present", key };
-  const failure = await checkReviewer(config.reviewers[0]!, {
+  const { failure, settle } = await checkReviewer(config.reviewers[0]!, {
     config,
     keys: { main: state },
     budget,
     secrets: key === null ? [] : [key],
   });
-  return { failure, provider, budget };
+  const heldWhileRunning = 1_000_000 * (over.maxUsd ?? 1) - budget.left();
+  settle();
+  return { failure, provider, budget, heldWhileRunning };
 }
 
 describe("checkReviewer", () => {
@@ -128,6 +130,11 @@ describe("checkReviewer", () => {
   test("what the check cost is counted", async () => {
     const { budget } = await check(says("ready"), { price: { input: 10, output: 100 } });
     expect(budget.spent()).toBe(20 * 10 + 2 * 100);
+  });
+
+  test("until it is settled, its worst case stays set aside, so a reported cost cannot change who sits", async () => {
+    const { heldWhileRunning } = await check(says("ready"), { price: { input: 10, output: 100 } });
+    expect(heldWhileRunning).toBe((26 + 500) * 10 + 16 * 100);
   });
 
   test("a refused check costs nothing", async () => {

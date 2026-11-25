@@ -78,6 +78,18 @@ describe("createBudget", () => {
     expect(() => createBudget(1).settle("ghost", 5)).toThrow("ghost");
   });
 
+  test("closing what is still open counts its worst case, and closing anything else does nothing", () => {
+    const budget = createBudget(0.01);
+    budget.reserve("a", 4000);
+    budget.reserve("b", 4000);
+    budget.settle("b", 100);
+    budget.close("a");
+    budget.close("b");
+    budget.close("ghost");
+    expect(budget.spent()).toBe(4100);
+    expect(budget.left()).toBe(5900);
+  });
+
   test("reserving the same call twice is a bug", () => {
     const budget = createBudget(1);
     budget.reserve("a", 1);

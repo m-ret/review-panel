@@ -25,6 +25,8 @@ export type Budget = {
   reserve(id: string, micros: number): boolean;
   /** Replaces what was set aside with what the call cost. Null: it did not say, so the worst case stands. */
   settle(id: string, micros: number | null): void;
+  /** For when something went wrong: if it is still open, the worst case stands. */
+  close(id: string): void;
   spent(): number;
   left(): number;
   isOver(): boolean;
@@ -54,6 +56,10 @@ export function createBudget(maxUsd: number): Budget {
       if (held === undefined) throw new Error(`settled without a reservation: ${id}`);
       reserved.delete(id);
       spent += micros ?? held;
+    },
+    close(id) {
+      spent += reserved.get(id) ?? 0;
+      reserved.delete(id);
     },
     spent: () => spent,
     left,

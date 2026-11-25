@@ -247,20 +247,53 @@ describe("callModel: when it goes wrong", () => {
     expect(evidence).toMatchObject({ end: "too-long", text: "" });
   });
 
-  test("a model that is silent for longer than Bun's own idle limit is not cut off by it", async () => {
-    // The limit is five minutes by default. Here it is set to its shortest, about eight seconds.
-    const provider = provide(() => stream([9500, frame("m", { content: "slow but fine" }, "stop"), sse("[DONE]")]));
+  /** Runs one call in a process of its own, with environment variables that Bun reads when it starts. */
+  async function callIn(env: Record<string, string>, provider: FakeProvider, timeoutMs: number) {
     const script = `
       import { callModel } from ${JSON.stringify(new URL("../src/call.ts", import.meta.url).pathname)};
-      const target = ${JSON.stringify(target(provider, { key: null }))};
-      const evidence = await callModel(target, "p", { maxOutputTokens: 5, timeoutMs: 20000, secrets: [] });
+      const target = ${JSON.stringify(target(provider))};
+      const evidence = await callModel(target, "p", { maxOutputTokens: 5, timeoutMs: ${timeoutMs}, secrets: [target.key] });
       console.log(evidence.end, evidence.text);
     `;
     const child = Bun.spawn(["bun", "-e", script], {
-      env: { PATH: process.env["PATH"] ?? "", BUN_CONFIG_HTTP_IDLE_TIMEOUT: "1" },
+      env: { PATH: process.env["PATH"] ?? "", ...env },
       stdout: "pipe",
+      stderr: "pipe",
     });
-    expect((await new Response(child.stdout).text()).trim()).toBe("closed slow but fine");
+    const [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+    return { out: out.trim(), err };
+  }
+
+  test("a server on this machine is asked directly, even when a proxy is set: the proxy would get the key in the clear", async () => {
+    const seen: string[] = [];
+    const proxy = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch(request) {
+        seen.push(request.headers.get("authorization") ?? "");
+        return new Response("from the proxy", { status: 502 });
+      },
+    });
+    const address = `http://127.0.0.1:${proxy.port}`;
+    const provider = provide(says("direct"));
+    const { out } = await callIn({ HTTP_PROXY: address, http_proxy: address, ALL_PROXY: address }, provider, 5000);
+    await proxy.stop(true);
+    expect(seen).toEqual([]);
+    expect(out).toBe("closed ready");
+    expect(provider.requests).toHaveLength(1);
+  });
+
+  test("the key is not printed when Bun is told to print every request", async () => {
+    const { out, err } = await callIn({ BUN_CONFIG_VERBOSE_FETCH: "curl" }, provide(says("x")), 5000);
+    expect(out).toStartWith("closed");
+    expect(out + err).not.toContain(KEY);
+  });
+
+  test("a model that is silent for longer than Bun's own idle limit is not cut off by it", async () => {
+    // The limit is five minutes by default. Here it is set to its shortest, about eight seconds.
+    const provider = provide(() => stream([9500, frame("m", { content: "slow but fine" }, "stop"), sse("[DONE]")]));
+    const { out } = await callIn({ BUN_CONFIG_HTTP_IDLE_TIMEOUT: "1" }, provider, 20_000);
+    expect(out).toBe("closed slow but fine");
   }, 20_000);
 
   test("a key that cannot be sent in a header fails as a call, and is not printed", async () => {

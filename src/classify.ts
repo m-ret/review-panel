@@ -14,6 +14,8 @@ export type Classification = {
 const SMALL = 40;
 /** Over this many, reviewers start to miss things. */
 const LARGE = 800;
+/** A line counts as more than one when it is this long, so that packing code into one line does not make it small. */
+const LINE_BYTES = 100;
 
 /**
  * Words that make a change sensitive. A word is matched whole, so "author" is
@@ -70,18 +72,21 @@ export function classifyDiff(diff: ParsedDiff): Classification {
   let lines = 0;
 
   for (const file of diff.files) {
-    if (!LOCK_FILE.test(file.path)) lines += file.added + file.removed;
+    if (!LOCK_FILE.test(file.path)) {
+      lines += Math.max(file.added, Math.ceil(file.addedText.length / LINE_BYTES)) + file.removed;
+    }
     // A renamed file counts under both names: both say what kind of code moved.
     const names = [...new Set([file.path, file.oldPath ?? file.path])];
     for (const name of names) {
       const type = typeOf(name);
       areas.add(type);
-      if (type === "docs" || type === "tests") continue;
+      if (type === "docs") continue;
+      for (const what of destructiveIn(file.addedText)) destructive.push(`${name} ${what}`);
+      if (type === "tests") continue;
       const found = sensitiveWords(wordsOf(name), true);
       if (name.startsWith(".github/")) found.set("infra", [".github"]);
       for (const area of found.keys()) areas.add(area);
       if (found.size > 0) sensitive.push(`${name} touches ${describe(found)}`);
-      for (const what of destructiveIn(file.addedText)) destructive.push(`${name} ${what}`);
     }
   }
 
@@ -118,12 +123,13 @@ export function raiseRisk(classification: Classification, asked: Risk | null): C
   return { ...classification, risk: asked, reasons: [...reasons, `raised from ${risk} to ${asked} by --risk`] };
 }
 
+/** What runs on servers or on data comes before "tests": its name does not make it harmless. */
 function typeOf(path: string): Area {
   if (DOCS.test(path)) return "docs";
-  if (TESTS.test(path)) return "tests";
-  if (FRONTEND.test(path)) return "frontend";
   if (/\.(?:sql|prisma)$/iu.test(path)) return "data";
   if (path.startsWith(".github/") || /(?:^|\/)Dockerfile|\.tf$/u.test(path)) return "infra";
+  if (TESTS.test(path)) return "tests";
+  if (FRONTEND.test(path)) return "frontend";
   return "code";
 }
 

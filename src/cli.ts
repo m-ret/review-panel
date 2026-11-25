@@ -12,7 +12,7 @@ import { planPanel, runPanel, worstCaseOf, type Panel, type Plan } from "./panel
 import { makeResultsFolder, readConfigFile, writeNew } from "./places.ts";
 import { countAnswered, plural, reviewerMarkdown, sizeOf, summaryJson, summaryMarkdown } from "./report.ts";
 import { chooseSeats, FEWEST_SEATS } from "./seats.ts";
-import { findSecrets } from "./secrets.ts";
+import { findSecrets, SHORTEST_KEY } from "./secrets.ts";
 import { oneLine, stripControls } from "./text.ts";
 import { RISKS, type Risk } from "./types.ts";
 
@@ -55,7 +55,9 @@ async function main(): Promise<number> {
   if (!authors.ok) throw new InputError(authors.problem);
   const input = readInput(options);
   const keys = readKeys(config, process.env);
-  const secrets = Object.values(keys).flatMap((key) => (key.state === "present" ? [key.key] : []));
+  const secrets = Object.values(keys)
+    .flatMap((key) => (key.state === "present" ? [key.key] : []))
+    .filter((key) => key.length >= SHORTEST_KEY);
 
   const startedAt = new Date();
   const plan = planPanel({ kind: input.kind, material: input.material, authors, askedRisk: readRisk(options.risk) });

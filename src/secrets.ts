@@ -11,11 +11,11 @@ const FORMATS: [string, RegExp][] = [
   ["a signed token (JWT)", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u],
   ["a Slack token", /\bxox[abeoprs]-[0-9A-Za-z-]{10,}/u],
   // Only with key material after it: code that merely mentions the header is fine.
-  ["a private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\s*\n[+ -]?\s*|\\n)[A-Za-z0-9+/=]{40,}/u],
+  ["a private key", /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----(?:\s*\n[+ -]?\s*|\\n)[A-Za-z0-9+/=]{40,}/u],
 ];
 
-/** Shorter values would match ordinary text. */
-const SHORTEST_KEY = 8;
+/** Shorter values would match ordinary text. Local servers are often given a dummy key, such as "none". */
+export const SHORTEST_KEY = 8;
 
 /** What looks like a secret, and where. The value itself is never returned. */
 export function findSecrets(text: string, keys: readonly string[]): FoundSecret[] {

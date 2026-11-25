@@ -90,7 +90,27 @@ describe("createReply", () => {
     expect(reply.badFrames).toBe(1);
   });
 
-  test("empty keep-alive data and frames without choices are not errors", () => {
+  test("a frame that says something else than a choice is counted, because it may be an error in other words", () => {
+    for (const odd of [{ object: "error", message: "engine died", code: 500 }, { detail: "gone" }, "text", 42, null, []]) {
+      expect(collect(frame({ delta: { content: "a" } }), JSON.stringify(odd))).toMatchObject({ text: "a", badFrames: 1 });
+    }
+  });
+
+  test("a part of the answer of an unknown kind is counted, because the text may have a hole there", () => {
+    const content = [{ type: "text", text: "Do " }, { type: "output_text", text: "not " }, { type: "text", text: "do it." }];
+    expect(collect(frame({ delta: { content } })).badFrames).toBe(1);
+    expect(collect(frame({ delta: { content: { text: "odd" } } })).badFrames).toBe(1);
+  });
+
+  test("frames with no choices that providers do send are fine: usage, and a list of choices that is empty", () => {
+    const usage = { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 };
+    expect(collect(JSON.stringify({ usage }), JSON.stringify({ choices: [], prompt_filter_results: [] }))).toMatchObject({
+      badFrames: 0,
+      usage: { inputTokens: 1, outputTokens: 2 },
+    });
+  });
+
+  test("empty keep-alive data and pings are not errors", () => {
     const reply = collect("", JSON.stringify({ type: "ping" }), frame({ delta: { content: "a" } }));
     expect(reply).toMatchObject({ text: "a", badFrames: 0, frames: 1 });
   });
@@ -112,9 +132,9 @@ describe("createReply", () => {
     expect(collect(JSON.stringify({ choices: [], usage })).usage).toEqual({ inputTokens: 5, outputTokens: 0 });
   });
 
-  test("parts of an odd shape are skipped, not a crash", () => {
+  test("parts of an odd shape are counted, not a crash", () => {
     const content = [null, "bare", 7, { type: "text" }, { text: "no type" }, { type: "text", text: "yes" }];
-    expect(collect(frame({ delta: { content } })).text).toBe("yes");
+    expect(collect(frame({ delta: { content } }))).toMatchObject({ text: "yes", badFrames: 1 });
   });
 
   test("reads a whole completion sent at once by a server that does not stream", () => {

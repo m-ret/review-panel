@@ -119,9 +119,12 @@ function describeIssue(issue: z.core.$ZodIssue): string {
 function isSafeAddress(text: string): boolean {
   if (!URL.canParse(text)) return false;
   const url = new URL(text);
-  const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  const isSafeScheme = url.protocol === "https:" || (url.protocol === "http:" && isLocal);
+  const isSafeScheme = url.protocol === "https:" || (url.protocol === "http:" && isThisMachine(text));
   return isSafeScheme && url.username + url.password + url.search + url.hash === "";
+}
+
+export function isThisMachine(address: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(address).hostname);
 }
 
 export type Key =

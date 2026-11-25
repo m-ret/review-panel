@@ -39,18 +39,30 @@ export function createReply(): { add(data: string): void; addWhole(body: string)
       reply.badFrames += 1;
       return;
     }
-    if (!isRecord(message)) return;
+    if (!isRecord(message)) {
+      reply.badFrames += 1;
+      return;
+    }
     reply.error ??= readError(message["error"]);
     reply.usage = readUsage(message["usage"]) ?? reply.usage;
+    const choices = message["choices"];
+    if (!Array.isArray(choices)) {
+      // Usage and pings come without choices. Anything else may be an error in words of its own.
+      const isKnown = isRecord(message["usage"]) || message["type"] === "ping" || reply.error !== null;
+      if (!isKnown) reply.badFrames += 1;
+      return;
+    }
 
-    const choice = Array.isArray(message["choices"]) ? message["choices"][0] : undefined;
+    const choice: unknown = choices[0];
     if (!isRecord(choice)) return;
     reply.frames += 1;
     if (typeof choice["finish_reason"] === "string") reply.finishReason = choice["finish_reason"];
     const piece = choice[part];
     if (!isRecord(piece)) return;
-    reply.text += textOf(piece["content"]);
-    reply.reasoningChars += textOf(piece["reasoning_content"]).length + textOf(piece["reasoning"]).length;
+    const answer = readContent(piece["content"]);
+    if (answer.hasUnknown) reply.badFrames += 1;
+    reply.text += answer.text;
+    reply.reasoningChars += readContent(piece["reasoning_content"]).text.length + readContent(piece["reasoning"]).text.length;
   }
 
   return {
@@ -67,13 +79,22 @@ export function createReply(): { add(data: string): void; addWhole(body: string)
   };
 }
 
-/** Content is a string, or a list of parts of which only the text parts are the answer. */
-function textOf(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) => (isRecord(part) && part["type"] === "text" && typeof part["text"] === "string" ? part["text"] : ""))
-    .join("");
+/**
+ * Content is a string, or a list of parts of which only the text parts are the
+ * answer. A part of an unknown kind may be a piece of the answer too.
+ */
+function readContent(content: unknown): { text: string; hasUnknown: boolean } {
+  if (typeof content === "string") return { text: content, hasUnknown: false };
+  if (content === undefined || content === null) return { text: "", hasUnknown: false };
+  if (!Array.isArray(content)) return { text: "", hasUnknown: true };
+  let text = "";
+  let hasUnknown = false;
+  for (const part of content) {
+    const kind = isRecord(part) ? part["type"] : undefined;
+    if (isRecord(part) && kind === "text" && typeof part["text"] === "string") text += part["text"];
+    else if (kind !== "thinking" && kind !== "reasoning") hasUnknown = true;
+  }
+  return { text, hasUnknown };
 }
 
 function readUsage(usage: unknown): Usage | null {
