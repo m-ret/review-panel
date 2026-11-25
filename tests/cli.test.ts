@@ -368,6 +368,15 @@ describe("what it reads", () => {
     expect(provider.requests.find((request) => !request.isCheck)?.prompt).toContain("+Subproject commit 2222222");
   });
 
+  test("the person's own git attributes do not leave anything out either", async () => {
+    const { folder, provider } = project(three());
+    const home = temporary();
+    write(home, ".config/git/attributes", "*.ts -diff\n");
+    const { exit } = await cli(folder, [...RANGE, "--author", "claude"], { env: { HOME: home } });
+    expect(exit).toBe(0);
+    expect(provider.requests.find((request) => !request.isCheck)?.prompt).toContain("+export const more = 2;");
+  });
+
   test("a file cannot ask git to leave its content out", async () => {
     const { folder, provider } = project(three());
     write(folder, ".gitattributes", "*.ts -diff\n");

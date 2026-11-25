@@ -20,10 +20,10 @@ export function runGit(args: readonly string[]): GitResult {
       // Only what git needs. The keys of the providers are not here.
       env: {
         PATH: process.env["PATH"] ?? "",
-        HOME: process.env["HOME"] ?? "",
         LC_ALL: "C",
         GIT_CONFIG_NOSYSTEM: "1",
         GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_ATTR_NOSYSTEM: "1",
         GIT_NO_LAZY_FETCH: "1",
         GIT_OPTIONAL_LOCKS: "0",
         GIT_TERMINAL_PROMPT: "0",

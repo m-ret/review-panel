@@ -234,6 +234,10 @@ describe("summaryMarkdown", () => {
       bench: [{ reviewer: { ...reviewer("opus"), lab: "anthropic" }, reason: "author", detail: "anthropic wrote the work" }],
     });
     expect(summaryMarkdown(benched)).toContain("claude, so anthropic sits out\n");
+    const two = { authors: { names: ["claude", "codex"], labs: new Set(["anthropic", "openai"]) } };
+    expect(summaryMarkdown({ ...benched, plan: plan(two) })).toContain(
+      "claude, codex, so anthropic sits out, openai sits out (it has no reviewer here)",
+    );
     const human = run([seat("a", clean), seat("b", clean)], {}, { authors: { names: ["human"], labs: new Set() } });
     expect(summaryMarkdown(human)).toMatch(/human.*no lab sits out/u);
   });

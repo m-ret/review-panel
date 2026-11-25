@@ -58,7 +58,11 @@ describe("createReply", () => {
         },
       }),
     );
-    expect(reply.text).toBe("yes");
+    expect(reply).toMatchObject({ text: "yes", badFrames: 0 });
+    expect(collect(frame({ delta: { content: [{ type: "reasoning", text: "hmm" }, { type: "text", text: "yes" }] } }))).toMatchObject({
+      text: "yes",
+      badFrames: 0,
+    });
   });
 
   test("an answer cut by the token limit keeps the finish reason that says so", () => {

@@ -219,7 +219,7 @@ Tests were written first and seen failing. They use no keys and no network. Call
 
 An independent reviewer then got the promises on this page, and was asked to break them and to prove each break by running code. It found 14 ways. Among them: a branch that brings its own config, a source file that git calls binary, a repository inside a folder, and a reply that stopped for a reason nobody had listed. All of them are fixed or written down here, and each fix has a test that fails without it.
 
-Then the code was broken on purpose, one small change at a time, to see whether a test noticed. In the last full pass the tests noticed 485 of 541 small breaks. The rest were read one by one. Those that mattered became new tests, and one of them showed a real bug in the diff reader. The others change nothing that a person could see, such as a limit moved by one.
+Then the code was broken on purpose, one small change at a time, to see whether a test noticed. In the last full pass the tests noticed 559 of 636 small breaks. The rest were read one by one. Those that mattered became new tests, and one of them showed a real bug in the diff reader. The others change nothing that a person could see, such as a limit moved by one.
 
 ## What it does not do
 

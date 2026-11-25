@@ -232,6 +232,12 @@ describe("runPanel", () => {
     expect(provider.requests.filter((request) => ["a", "b"].includes(request.model))).toEqual([]);
   });
 
+  test("with a cap of zero, free models run as always, checks and all", async () => {
+    const { panel, provider } = await run({ a: reviews(), b: reviews(), c: reviews() }, { limits: { maxUsd: 0 } });
+    expect(panel.state).toBe("complete");
+    expect(provider.requests.filter((request) => request.isCheck)).toHaveLength(3);
+  });
+
   test("a reply without usage is charged its worst case, and says so", async () => {
     const noUsage = afterCheck((request) => stream([frame("a", { content: signOff(request, 0) }, "stop"), sse("[DONE]")]));
     const price = { input: 0, output: 100 };
