@@ -36,7 +36,7 @@ The demo runs the real command against a stand-in provider on your machine. Two 
 [`examples/refund.diff`](examples/refund.diff) is a refund function with bugs planted on purpose. On 2026-11-24 it went through [`panel.example.json`](panel.example.json), which lists eight models from eight labs on NVIDIA's free endpoint:
 
 ```console
-$ review-panel --diff examples/refund.diff --author claude --config panel.example.json
+$ review-panel --diff examples/refund.diff --author claude
 examples/refund.diff, 1 file, +38 -0
 written by claude; risk high
   src/payments/refund.ts touches payments (payments, refund)
@@ -60,7 +60,7 @@ A reply counts if all of this is true. If not, the reviewer "did not answer", an
 
 1. The provider accepted the request, and no error came inside the stream.
 2. Every piece of the reply could be read.
-3. The provider said that it was finished, and not because of a token limit or a filter.
+3. The provider said that it was finished. A token limit, a filter, or a reason nobody knows is not "finished".
 4. There is text.
 5. The last line is this run's sign-off. Its code is random and new, half of it above the work and half below. So a signed answer got both ends of the packet, is finished, and was not planted in the diff.
 6. The number in the sign-off is the number of findings that were written.
@@ -79,12 +79,15 @@ Code picks, not a model, so the same work, config and checks always give the sam
 
 Reviewers are sorted by how well their `goodAt` list matches the change. Then the list is walked once. A reviewer does not sit if it is from the author's lab, its check failed, its lab already has a seat, or its worst case does not fit under the spend cap. Each reason is written down.
 
+The risk decides how many read the change, never what they read. What is sent is sent whole or not at all. A change that is too big, that holds something like a key, or that git will only call "binary" is refused.
+
 ## Use it
 
 ```bash
-bun link                              # puts review-panel on your path
-cp panel.example.json panel.json      # then put your own reviewers in it
-export NVIDIA_API_KEY=...             # one variable for each provider
+bun link                                   # puts review-panel on your path
+mkdir -p ~/.config/review-panel
+cp panel.example.json ~/.config/review-panel/panel.json   # then put your own reviewers in it
+export NVIDIA_API_KEY=...                  # one variable for each provider
 
 review-panel --author claude --range main...HEAD
 review-panel --author claude --range main...HEAD -- src/payments
@@ -94,13 +97,15 @@ review-panel --author human --question plan.md
 
 `--dry-run` shows the plan and the worst-case cost, and writes the exact text that would be sent. It sends nothing. `--help` has the rest.
 
-Any OpenAI-compatible endpoint works as a provider. The example config needs one free key. A key that is written in the config is refused.
+Any OpenAI-compatible endpoint works as a provider. The example config needs one free key. Keys are read from environment variables only, and a key that is written in the config is refused.
+
+The config lives in your home folder, not in the repository. It says where your key and your code go, so a branch under review must not be able to bring its own. For the same reason git runs with its guard up: nothing in the folder under review can start a command.
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | every seat was filled and answered |
+| 0 | every seat was filled and answered (also `--help` and `--dry-run`) |
 | 1 | a seat is missing, or a reviewer did not answer |
-| 2 | nothing was sent: bad input, a bad config, or something that looks like a key |
+| 2 | refused before anything was sent: bad input, a bad config, or something that must not be sent |
 | 3 | fewer than two reviewers could sit |
 
 ## Limits
@@ -109,6 +114,7 @@ Any OpenAI-compatible endpoint works as a provider. The example config needs one
 - Reviewers see the diff only. They cannot open the repository or run anything.
 - Different labs are a stand-in for independence. They train on much of the same public text, so they can share a blind spot.
 - The spend cap trusts your prices and the provider's own count. If a provider counts more than the worst case, the summary says so afterwards.
+- A made-up file name can lower the risk from four readers to two. It cannot hide code from them.
 - Your code goes to the providers you list. Read their terms first.
 
 ## How it works

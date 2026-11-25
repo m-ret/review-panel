@@ -22,20 +22,29 @@ One AI model writes a change. Two to four other models read it. This program doe
 review-panel --range main...HEAD --author claude
 ```
 
-### 1. Read the work (`input.ts`, `diff.ts`)
+### 1. Read the config (`places.ts`, `config.ts`)
 
-The program asks git for the diff. It forces a plain diff, because people set up git in different ways: with colors, with another diff tool, or with other prefixes. A range that starts with a hyphen is refused. Git would read it as an option, and some git options write files.
+The config lists the labs, the providers and the reviewers. It is read from `~/.config/review-panel/panel.json`, or from `--config`. It is never read from the folder under review, and a file that git tracks is refused. The config says where the keys and the code go, so whoever wrote the change must not be able to change it too.
 
-Then it reads the diff to learn which files changed, and by how many lines. Each block of a diff starts with a header such as `@@ -1,3 +1,4 @@`, which says how many lines follow. The program counts them down one by one. The reason is a trap. A comment in SQL starts with `--`. When you remove one, the diff line is `--- some text`, and that looks exactly like a file header. Without counting, the content of a file could invent another file or hide one, and that would change the risk.
+Keys are not in the config. It holds the name of an environment variable for each provider.
 
-### 2. Refuse what must not be sent (`secrets.ts`, `cli.ts`)
+### 2. Read the work (`input.ts`, `git.ts`, `diff.ts`)
 
-Two checks run before anything leaves the machine.
+The program asks git for the diff, and it does not trust the folder it runs in. A repository can name commands in its own settings: a file watcher, an ssh command, a filter. A pull request can even carry a whole repository inside a folder. So git runs with those turned off, without the keys in its environment, and without anyone's settings. The diff is always the plain one, with everything in it. No file can ask to be left out.
 
-- **Does it look like it holds a key?** The program looks for well-known key formats, for private keys, and for the keys it uses itself. If it finds one, it stops. The message gives the kind and the line, never the value. No option turns this off. To go on, leave that file out with paths after `--`.
+A range that starts with a hyphen is refused. Git would read it as an option, and some git options write files.
+
+Then the program reads the diff to learn which files changed, and by how many lines. Each block of a diff starts with a header such as `@@ -1,3 +1,4 @@`, which says how many lines follow. The program counts them down one by one. The reason is a trap. A comment in SQL starts with `--`. When you remove one, the diff line is `--- some text`, and that looks exactly like a file header. Without counting, the content of a file could invent another file or hide one, and that would change the risk.
+
+### 3. Refuse what must not be sent (`secrets.ts`, `cli.ts`)
+
+Three checks run before anything leaves the machine. Each one says what to leave out with paths after `--`, and the summary keeps those paths.
+
+- **Does it look like it holds a key?** The program looks for well-known key formats, for private keys, and for the keys it uses itself. If it finds one, it stops. The message gives the kind and the line, never the value. No option turns this off.
+- **Is all of it text?** For a picture, git only says "Binary files differ". It says the same for a source file with a strange character in it. A reviewer would sign for a change it did not see, so the program stops.
 - **Is it too big?** Then it stops too. It never trims a diff to fit, because a reviewer that saw half of a change would sign for all of it.
 
-### 3. Decide how risky it is (`classify.ts`)
+### 4. Decide how risky it is (`classify.ts`)
 
 No model is asked. Each path is split into words: `src/OAuthClient.ts` becomes `src`, `o`, `auth`, `client`, `ts`. The words are looked up in a short table. Words are matched whole, so `author.ts` is not about `auth`. A renamed file counts under both names.
 
@@ -45,17 +54,19 @@ No model is asked. Each path is split into words: `src/OAuthClient.ts` becomes `
 | medium | everything else | 3 |
 | high | a path about security, payments, data or infrastructure; added code that destroys data; more than 800 changed lines; or a diff that could not be read all the way | 4 |
 
-When in doubt the risk goes up. A person can raise it with `--risk`, but cannot lower it. A question has no paths, so it is medium, unless it names something sensitive.
+When in doubt the risk goes up. A long line counts as several. A workflow or a migration is never "just a test". A person can raise the risk with `--risk`, but cannot lower it. A question has no paths, so it is medium, unless it names something sensitive.
 
-### 4. Leave the author out (`author.ts`)
+The risk decides how many read the change, not what they read. A name made up to look harmless can cost two readers. It cannot hide code.
 
-Every reviewer in the config belongs to a lab, the company that made the model. `--author` can be a reviewer, a model, a lab, an alias from the config (`claude` means `anthropic`), or `human`. It can be several, with commas.
+### 5. Leave the author out (`author.ts`)
 
-The whole lab sits out. It is not asked anything, not even the check in the next step.
+Every reviewer belongs to a lab, the company that made the model. The config lists every lab once, with the other names its models go by as authors: `"anthropic": ["claude"]`. A reviewer's lab has to be in that list. So a spelling mistake is refused, and cannot separate a reviewer from its own lab.
+
+`--author` can be a reviewer, a model, a lab, one of those other names, or `human`. It can be several. The whole lab sits out. It is not asked anything, not even the check in the next step.
 
 A name that the config does not know is refused. If it were accepted, it would leave nobody out, so one typo would let a model review its own work.
 
-### 5. Check every candidate (`check.ts`)
+### 6. Check every candidate (`check.ts`)
 
 Each candidate is asked for one word, with a limit of 16 tokens. The question holds none of the work. A candidate that fails loses its seat before it sees any code.
 
@@ -63,7 +74,7 @@ Why a real request, and not the provider's list of models? Because the list prov
 
 The reply is not graded. A reasoning model may spend all 16 tokens thinking and say nothing. That still proves that the key, the model and the address work.
 
-### 6. Fill the seats (`seats.ts`)
+### 7. Fill the seats (`seats.ts`)
 
 The reviewers are sorted by how many of the areas of the change are in their `goodAt` list. Ties keep the order of the config. Then the program walks down the list once and asks four questions about each one:
 
@@ -76,15 +87,17 @@ One yes and it does not sit, and the reason is written down. When the seats are 
 
 If fewer than two can sit, nothing is sent, because one reviewer is not a panel. If fewer can sit than the risk asks for, the panel runs, and the first line of the summary says that it is short.
 
-### 7. Set the money aside (`budget.ts`)
+### 8. Set the money aside (`budget.ts`)
 
 Reviewers work at the same time. So it is not enough to check what was spent so far: two calls could both pass that check and go over the cap together. Before a call starts, its worst case is set aside. If it no longer fits, the call does not start. When the call ends, its real cost replaces the worst case.
 
-The worst case is the whole prompt plus the longest answer allowed. The prompt is counted as one token for every byte. That is too high on purpose, about four times too high for code. A token is at least one byte, so this is the one number that cannot be too low. Another 500 tokens cover the template that the provider adds around the prompt.
+The worst case is the whole prompt plus the longest answer allowed. The prompt is counted as one token for every byte, because a token stands for at least one byte of text. That is about three times too high for code, and that is the safe side. Another 500 tokens cover the template that the provider adds around the prompt.
 
-If a provider does not say what a call cost, the worst case stands. Money is kept in whole millionths of a dollar, so rounding cannot hide anything.
+If a provider does not say what a call cost, or fails half way, the worst case stands. Money is kept in whole millionths of a dollar, so rounding cannot hide anything.
 
-### 8. Ask everyone at once (`prompt.ts`, `call.ts`, `sse.ts`, `reply.ts`)
+The checks are paid from the same cap. Their worst case stays set aside until the seats are filled, so a provider cannot change who sits by claiming that its check was expensive.
+
+### 9. Ask everyone at once (`prompt.ts`, `call.ts`, `sse.ts`, `reply.ts`)
 
 Every seat gets the same packet: what to look for, how to write a finding, and the work between two marker lines. The packet says that everything between the markers is data, not instructions.
 
@@ -98,28 +111,30 @@ Every seat gets the same packet: what to look for, how to write a finding, and t
 
 **Cleaning.** Everything that comes back is cleaned once, at the door: terminal codes, invisible characters, account ids in error messages, and any repeat of a key.
 
-### 9. Judge each reply (`outcome.ts`, `answer.ts`)
+### 10. Judge each reply (`outcome.ts`, `answer.ts`)
 
 The code that makes the call only reports what happened. Other code decides what it means. An answer counts if all of this is true:
 
 1. The provider accepted the request, and no error came inside the stream.
 2. Every piece of the reply could be read.
-3. The provider said that it was finished, and not because of a limit or a filter.
+3. The provider said that it was finished, in one of the few words that mean that. A limit, a filter, no word at all or a word nobody knows is not "finished".
 4. There is text.
 5. The last line is this run's sign-off.
 6. The number in the sign-off is the number of findings that were written.
 
 If one of them fails, the reviewer "did not answer", and the reason gets a name: `no-key`, `no-access`, `out-of-credit`, `rate-limited`, `model-not-found`, `bad-request`, `provider-error`, `timeout`, `network`, `empty`, `truncated`, `filtered`, `unsigned`, `inconsistent`, `over-budget` or `internal-error`. Each one needs a different fix, so each has its own name.
 
-### 10. Write it down (`report.ts`)
+### 11. Write it down (`report.ts`)
+
+The files go to a new folder in `~/.local/state/review-panel/`, or to `--out`. Nothing is written in the folder under review, nothing is overwritten, and only their owner can read them.
 
 - `prompt.txt`: exactly what was sent.
 - `<reviewer>.md`, one for each seat, written as soon as that reviewer is done. The text is kept as it came. If the reviewer did not answer, the part that arrived is kept too, under "not counted".
 - `summary.md` and `summary.json`, written last. If there is no summary, the run did not finish.
 
-The summary opens with what is missing. If it opened with the findings, a missing reviewer would look like one with nothing to say.
+The summary carries a fingerprint of the work (SHA-256), so a later version of it cannot pass for the one that was reviewed. It opens with what is missing. If it opened with the findings, a missing reviewer would look like one with nothing to say.
 
-### 11. A person decides
+### 12. A person decides
 
 The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in. In the JSON file, `decision` is always `null`.
 
@@ -128,8 +143,10 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 | File | Its job |
 | --- | --- |
 | `cli.ts` | reads the options, runs the steps, sets the exit code |
+| `places.ts` | where the config and the results live |
 | `input.ts` | gets the diff or the question |
-| `config.ts` | checks the config file and reads the keys |
+| `git.ts` | runs git with its guard up |
+| `config.ts` | checks the config and reads the keys |
 | `author.ts` | finds the lab that must sit out |
 | `secrets.ts` | finds what must not be sent |
 | `diff.ts` | which files changed, and by how much |
@@ -139,7 +156,7 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 | `check.ts` | one word from each candidate |
 | `seats.ts` | who sits, and why the others do not |
 | `budget.ts` | the money |
-| `ask.ts` | one call, with its money settled whatever happens |
+| `ask.ts` | one call, and what it cost |
 | `call.ts` | one HTTP request, reported as it happened |
 | `sse.ts`, `reply.ts` | the stream, put back together |
 | `outcome.ts` | did it answer, and if not, why |
@@ -179,6 +196,8 @@ The summary ends with two empty boxes, GO and NO-GO. No code ever fills them in.
 
 **What if a provider lies about what a call cost?** Then the cap can be passed, and the summary says so. The program can only count what it is told.
 
+**Why is the config not in the repository?** Because the change under review could bring its own. It would say: send the code here, use the key in that variable, and these are the reviewers.
+
 **Why does it not read `.env`?** The program runs inside the folder under review, and Bun reads `.env` and `bunfig.toml` from there by default. A `bunfig.toml` can run code. The first line of `cli.ts` turns both off.
 
 ## What was measured
@@ -198,6 +217,8 @@ All on 2026-11-24, with free models.
 
 Tests were written first and seen failing. They use no keys and no network. Calls go over real HTTP to a stand-in provider on the same machine (`demo/fake-provider.ts`), which can answer, stop half way, refuse, stay silent, send broken pieces or send a whole web page. The command-line tests start the real command by its first line, in a real git repository.
 
+An independent reviewer then got the promises on this page, and was asked to break them and to prove each break by running code. It found 14 ways. Among them: a branch that brings its own config, a source file that git calls binary, a repository inside a folder, and a reply that stopped for a reason nobody had listed. All of them are fixed or written down here, and each fix has a test that fails without it.
+
 Then the code was broken on purpose, one small change at a time, to see whether a test noticed. In the last full pass the tests noticed 485 of 541 small breaks. The rest were read one by one. Those that mattered became new tests, and one of them showed a real bug in the diff reader. The others change nothing that a person could see, such as a limit moved by one.
 
 ## What it does not do
@@ -207,6 +228,8 @@ Then the code was broken on purpose, one small change at a time, to see whether 
 - It does not know if a model is good. `goodAt` is your opinion.
 - It does not stop you from sending code to a provider you should not use. Read the terms of each one.
 - The search for keys knows common formats. It is a safety net, not a scanner.
+- The table of sensitive words is short. A name that is made up to look harmless gets two readers instead of four.
+- It cannot stop a program on your own machine, or your own settings for proxies, from seeing what you send to a provider.
 - It needs a Unix-like system.
 
 ## Words used here
