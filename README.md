@@ -15,7 +15,7 @@ Send a diff or a question to two to four AI models that did not write it. Every 
 
 When one model writes code and others review it, three things go wrong without a sound:
 
-- **The author reviews its own work.** A model rarely sees the hole it just left. Here, the lab of whoever wrote the change sits out, and a misspelled author is refused, because a typo would seat the real one.
+- **The author reviews its own work,** with the same blind spots it wrote it with. Here, the lab of whoever wrote the change sits out, and a misspelled author is refused, because a typo would seat the real one.
 - **Silence looks like approval.** A rate limit, a cut-off reply, an empty body and a clean review can all end up in a log as "no findings". Here, a reply counts only if it proves that it arrived whole.
 - **Code makes the decision.** Votes get added up, and three models that missed a bug outvote the one that saw it. Here, the summary ends with two empty boxes: GO and NO-GO.
 
@@ -51,7 +51,7 @@ step: timeout (no complete reply after 300 s, only hidden reasoning had arrived,
 3 of 4 reviewers answered. This panel is not complete. A missing answer is not agreement. The decision is yours.
 ```
 
-The three that answered all found the two worst bugs: a refund that the gateway refuses is still written down as paid, and two requests at once pay twice. The fourth thought for five minutes and said nothing, so the command ended with exit code 1. Three models never got a seat. The provider lists one of those, but calling it gives "404 Not Found".
+The three that answered all found the two worst bugs: a refund that the gateway refuses is still written down as paid, and two requests at once pay twice. The fourth thought for five minutes and said nothing, so the command ended with exit code 1. Three models failed their check. The provider lists one of those, but calling it gives "404 Not Found".
 
 Read [the summary](examples/run-2026-11-25/summary.md), [what one reviewer wrote](examples/run-2026-11-25/mistral.md), or [the one that did not answer](examples/run-2026-11-25/step.md).
 
@@ -98,7 +98,7 @@ review-panel --author human --question plan.md
 
 `--dry-run` shows the plan and the worst-case cost, and writes the exact text that would be sent. It sends nothing. `--help` has the rest.
 
-Any OpenAI-compatible endpoint works as a provider. The example config needs one free key. Keys are read from environment variables only, and a key that is written in the config is refused.
+A provider is any OpenAI-compatible endpoint. The run above used NVIDIA's, and the settings `maxTokensParam` and `streamUsage` cover two known differences between providers. The example config needs one free key. Keys are read from environment variables only, and a key that is written in the config is refused.
 
 The config lives in your home folder, not in the repository. It says where your key and your code go, so a branch under review must not be able to bring its own. For the same reason git runs with its guard up, and the `.env` and `bunfig.toml` of that folder are not read.
 
