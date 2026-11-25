@@ -4,7 +4,7 @@ import type { Usage } from "./reply.ts";
 // Money is kept in whole millionths of a dollar. A price of 2 dollars per
 // million tokens is 2 of them per token, so no rounding error can build up.
 
-/** Providers wrap a prompt in a template of their own. The largest seen added about 160 tokens. */
+/** Providers wrap a prompt in a template of their own. The largest seen made 184 tokens of a 26-byte prompt. */
 const TEMPLATE_TOKENS = 500;
 
 export function costOf(usage: Usage, price: Price): number {

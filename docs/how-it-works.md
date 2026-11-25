@@ -24,7 +24,7 @@ review-panel --range main...HEAD --author claude
 
 ### 1. Read the config (`places.ts`, `config.ts`)
 
-The config lists the labs, the providers and the reviewers. It is read from `~/.config/review-panel/panel.json`, or from `--config`. It is never read from the folder under review, and a file that git tracks is refused. The config says where the keys and the code go, so whoever wrote the change must not be able to change it too.
+The config lists the labs, the providers and the reviewers. It is read from `~/.config/review-panel/panel.json`, or from `--config`. It is not looked for in the folder under review, and a file that git tracks is refused. The config says where the keys and the code go, so whoever wrote the change must not be able to change it too.
 
 Keys are not in the config. It holds the name of an environment variable for each provider.
 
@@ -85,7 +85,7 @@ The reviewers are sorted by how many of the areas of the change are in their `go
 
 One yes and it does not sit, and the reason is written down. When the seats are full, the rest are "not needed".
 
-If fewer than two can sit, nothing is sent, because one reviewer is not a panel. If fewer can sit than the risk asks for, the panel runs, and the first line of the summary says that it is short.
+If fewer than two can sit, nothing is sent, because one reviewer is not a panel. If fewer can sit than the risk asks for, the panel runs, and the top of the summary says that it is short.
 
 ### 8. Set the money aside (`budget.ts`)
 
@@ -101,7 +101,7 @@ The checks are paid from the same cap. Their worst case stays set aside until th
 
 Every seat gets the same packet: what to look for, how to write a finding, and the work between two marker lines. The packet says that everything between the markers is data, not instructions.
 
-**The sign-off.** Each run makes a fresh random code. Half of it is written above the work and half below it. The last line of an answer must be `SIGN-OFF <both halves> | <number of findings>`. So a signed answer shows three things:
+**The sign-off.** Each run makes a fresh random code. Half of it is written above the work and half below it. The last line of an answer must be `SIGN-OFF <both halves> | <number of findings>`. For a question, the recommendation stands in place of the number. So a signed answer shows three things:
 
 - the reviewer received the start and the end of the packet, since some servers cut a long prompt without saying so;
 - the answer is finished, because the line is the last one;
@@ -129,7 +129,7 @@ If one of them fails, the reviewer "did not answer", and the reason gets a name:
 The files go to a new folder in `~/.local/state/review-panel/`, or to `--out`. Nothing is written in the folder under review, nothing is overwritten, and only their owner can read them.
 
 - `prompt.txt`: exactly what was sent.
-- `<reviewer>.md`, one for each seat, written as soon as that reviewer is done. The text is kept as it came. If the reviewer did not answer, the part that arrived is kept too, under "not counted".
+- `<reviewer>.md`, one for each seat, written as soon as that reviewer is done. The text is kept as it came, except for the cleaning above. If the reviewer did not answer, the part that arrived is kept too, under "not counted".
 - `summary.md` and `summary.json`, written last. If there is no summary, the run did not finish.
 
 The summary carries a fingerprint of the work (SHA-256), so a later version of it cannot pass for the one that was reviewed. It opens with what is missing. If it opened with the findings, a missing reviewer would look like one with nothing to say.
@@ -208,9 +208,9 @@ All on 2026-11-24 and 25, with free models.
 - **Do empty answers happen?** Yes. One model used its whole limit of 32,000 tokens to think, sent 120,699 characters of hidden reasoning and not one character of text. The status was 200.
 - **Does a list of models prove anything?** No. One listed model gave 404.
 - **What does a 16-token check show on a reasoning model?** Status 200, only hidden reasoning, and "stopped at the token limit". It passes, as it should.
-- **How much do providers add to a prompt?** A 26-byte prompt was billed as 14 to 184 tokens.
+- **How much do providers add to a prompt?** A 26-byte prompt was billed as 17 to 184 tokens.
 - **Can the folder under review run code?** With plain `bun run`, yes: a planted `bunfig.toml` ran a planted script. Started by its first line, no.
-- **Does Bun cut a silent connection?** Yes, after five minutes by default. The call turns that timer off and uses its own.
+- **Does Bun cut a silent connection?** Yes. With its timer at the shortest setting, a silent connection was cut after eight seconds. The default is five minutes. The call turns that timer off and uses its own.
 - **Does the diff reader agree with git?** On 688 commits and almost 5,000 changed files from six repositories, every file name and line count was the same as in `git show --numstat`.
 
 ## How it is tested
